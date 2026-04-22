@@ -20,35 +20,41 @@ struct ProductView: View {
 
     var body: some View {
         ZStack {
-            // Swipe indicators (revealed as card moves)
+            // Swipe hint icons (behind card, revealed as it slides)
             HStack {
-                // Back — revealed on right swipe
-                Circle()
-                    .fill(Color.appPrimary.opacity(0.13))
-                    .frame(width: 68, height: 68)
-                    .overlay(
-                        Image(systemName: "arrow.left")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(Color.appPrimary)
-                    )
-                    .scaleEffect(1.0 + max(0.0, dragOffset - 30.0) / 260.0)
-                    .opacity(Double(max(0.0, min(1.0, (dragOffset - 20.0) / 70.0))))
-                    .padding(.leading, 32)
+                // Dismiss — right swipe
+                ZStack {
+                    Circle()
+                        .fill(Color.appPrimary.opacity(0.18))
+                        .frame(width: 72, height: 72)
+                    Circle()
+                        .stroke(Color.appPrimary.opacity(0.35), lineWidth: 1.5)
+                        .frame(width: 72, height: 72)
+                    Image(systemName: "arrow.left")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(Color.appPrimary)
+                }
+                .scaleEffect(max(0.6, min(1.3, 0.6 + max(0.0, dragOffset - 10.0) / 110.0)))
+                .opacity(Double(max(0.0, min(1.0, (dragOffset - 10.0) / 60.0))))
+                .padding(.leading, 28)
 
                 Spacer()
 
-                // Cart — revealed on left swipe
-                Circle()
-                    .fill(Color.green.opacity(0.13))
-                    .frame(width: 68, height: 68)
-                    .overlay(
-                        Image(systemName: "cart.badge.plus")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.green)
-                    )
-                    .scaleEffect(1.0 + max(0.0, -dragOffset - 30.0) / 260.0)
-                    .opacity(Double(max(0.0, min(1.0, (-dragOffset - 20.0) / 70.0))))
-                    .padding(.trailing, 32)
+                // Cart — left swipe
+                ZStack {
+                    Circle()
+                        .fill(Color.green.opacity(0.18))
+                        .frame(width: 72, height: 72)
+                    Circle()
+                        .stroke(Color.green.opacity(0.35), lineWidth: 1.5)
+                        .frame(width: 72, height: 72)
+                    Image(systemName: "cart.badge.plus")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(.green)
+                }
+                .scaleEffect(max(0.6, min(1.3, 0.6 + max(0.0, -dragOffset - 10.0) / 110.0)))
+                .opacity(Double(max(0.0, min(1.0, (-dragOffset - 10.0) / 60.0))))
+                .padding(.trailing, 28)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -108,13 +114,27 @@ struct ProductView: View {
                     }
                 }
             }
+            .scrollIndicators(.hidden)
             .background(Color.appBackground)
             .scrollDisabled(isSwipeActive)
+            // Colored tint on card face as it flies off
+            .overlay {
+                let rightProgress = Double(max(0.0, min(1.0, (dragOffset - 10.0) / 120.0)))
+                let leftProgress  = Double(max(0.0, min(1.0, (-dragOffset - 10.0) / 120.0)))
+                Color.appPrimary.opacity(rightProgress * 0.08)
+                    .allowsHitTesting(false)
+                Color.green.opacity(leftProgress * 0.08)
+                    .allowsHitTesting(false)
+            }
             .offset(x: dragOffset)
-            .rotationEffect(.degrees(Double(dragOffset) / 26.0), anchor: .bottom)
+            .rotationEffect(
+                .degrees(Double(dragOffset) / 22.0),
+                anchor: UnitPoint(x: 0.5, y: 1.15)
+            )
+            .scaleEffect(max(0.93, 1.0 - abs(Double(dragOffset)) / Double(screenWidth * 2.8)))
             .opacity({
-                let ratio = dragOffset / (screenWidth * 1.4)
-                return Double(min(1.0, max(0.0, 1.0 - abs(ratio))))
+                let ratio = abs(dragOffset) / (screenWidth * 1.1)
+                return Double(min(1.0, max(0.0, 1.0 - ratio)))
             }())
         }
         .background(Color.appBackground)
@@ -189,24 +209,25 @@ struct ProductView: View {
                     defer { isSwipeActive = false }
 
                     guard isSwipeActive else {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { dragOffset = 0 }
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.65)) { dragOffset = 0 }
                         return
                     }
 
-                    // Счёт с учётом скорости: быстрый флик — меньший порог
-                    let triggeredRight = dx > 60 || velX > 600
-                    let triggeredLeft  = dx < -50 || velX < -600
+                    // Учитываем скорость: быстрый флик — меньший порог дистанции
+                    let triggeredRight = dx > 60 || velX > 500
+                    let triggeredLeft  = dx < -50 || velX < -500
 
                     if triggeredRight {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
-                            dragOffset = screenWidth * 1.4
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                            dragOffset = screenWidth * 1.5
                         }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.33) { dismiss() }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { dismiss() }
                     } else if triggeredLeft {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.5)) {
-                            dragOffset = -screenWidth * 0.28
+                        // Bounce: уйти влево, отпружинить назад
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                            dragOffset = -screenWidth * 0.32
                         }
-                        withAnimation(.spring(response: 0.52, dampingFraction: 0.72).delay(0.2)) {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.58).delay(0.18)) {
                             dragOffset = 0
                         }
                         guard !addedToCart else { return }
@@ -219,7 +240,8 @@ struct ProductView: View {
                             } catch {}
                         }
                     } else {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { dragOffset = 0 }
+                        // Snap back с лёгким отскоком
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.62)) { dragOffset = 0 }
                     }
                 }
         )
