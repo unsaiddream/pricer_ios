@@ -488,19 +488,22 @@ private struct FavLargeRow: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Фото слева
-            ZStack(alignment: .topTrailing) {
-                WProductImage(image: images[product.id])
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
-                if let pct = product.dropPercent {
-                    WDiscountSticker(percent: pct, size: 36)
-                        .offset(x: 3, y: -3).padding(.trailing, 3).padding(.top, 4)
+            // Фото слева — scaledToFit чтобы весь товар был виден
+            Group {
+                if let img = images[product.id] {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFit()
+                } else {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.wPrimary.opacity(0.07))
                 }
             }
-            .frame(width: 100)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(8)
+            .frame(width: 72, height: 72)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.leading, 10)
+            .padding(.vertical, 8)
+            .padding(.trailing, 4)
 
             // Текст и магазины справа
             VStack(alignment: .leading, spacing: 3) {
