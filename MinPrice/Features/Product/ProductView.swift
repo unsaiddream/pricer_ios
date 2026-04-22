@@ -157,6 +157,17 @@ private struct ProductActionBar: View {
                 .buttonStyle(.plain)
 
                 if !isCollapsed {
+                    // Назад
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.appForeground)
+                            .frame(width: 46, height: 46)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
+
                     // Избранное
                     Button(action: onFavorite) {
                         Image(systemName: favorited ? "star.fill" : "star")
@@ -171,17 +182,6 @@ private struct ProductActionBar: View {
                     }
                     .buttonStyle(.plain)
                     .animation(.spring(response: 0.3, dampingFraction: 0.55), value: favorited)
-
-                    // Назад
-                    Button(action: onBack) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.appForeground)
-                            .frame(width: 46, height: 46)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
-                    }
-                    .buttonStyle(.plain)
 
                     // В корзину
                     Button(action: onAddToCart) {
