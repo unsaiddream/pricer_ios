@@ -17,7 +17,14 @@ struct HomeView: View {
                     HeroBanner()
                         .padding(.horizontal, 14)
                         .padding(.top, 8)
-                        .padding(.bottom, 16)
+                        .padding(.bottom, 12)
+
+                    // Виджет экономии
+                    if !vm.bestDeals.isEmpty || !vm.priceDrops.isEmpty {
+                        SavingsBanner(products: vm.bestDeals + vm.priceDrops)
+                            .padding(.horizontal, 14)
+                            .padding(.bottom, 16)
+                    }
 
                     if vm.isLoading {
                         SkeletonGrid()
@@ -250,5 +257,101 @@ private struct SkeletonGrid: View {
             }
             .padding(.horizontal, 14)
         }
+    }
+}
+
+// MARK: - Savings Banner
+
+private struct SavingsBanner: View {
+    let products: [Product]
+
+    private var totalSavings: Int {
+        products.compactMap { p -> Int? in
+            guard let best = p.stores?.filter({ $0.inStock }).min(by: { $0.price < $1.price }),
+                  let prev = best.previousPrice, prev > best.price else { return nil }
+            return Int(prev - best.price)
+        }.reduce(0, +)
+    }
+
+    private var discountedCount: Int {
+        products.filter { p in
+            guard let best = p.stores?.filter({ $0.inStock }).min(by: { $0.price < $1.price }) else { return false }
+            return (best.previousPrice ?? 0) > best.price
+        }.count
+    }
+
+    private let storeAssets: [(asset: String, color: Color)] = [
+        ("store_magnum",     Color(red: 0.90, green: 0.21, blue: 0.21)),
+        ("store_arbuz",      Color(red: 0.26, green: 0.63, blue: 0.28)),
+        ("store_airba_fresh",Color(red: 0.98, green: 0.55, blue: 0.00)),
+        ("store_small",      Color(red: 0.12, green: 0.53, blue: 0.90)),
+    ]
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            // Тёмный фон
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(red: 0.08, green: 0.12, blue: 0.22))
+
+            // Декоративный blob справа
+            GeometryReader { geo in
+                Circle()
+                    .fill(Color.appPrimary.opacity(0.25))
+                    .frame(width: 130, height: 130)
+                    .blur(radius: 28)
+                    .offset(x: geo.size.width - 80, y: -20)
+
+                Circle()
+                    .fill(Color.appPrimary.opacity(0.10))
+                    .frame(width: 80, height: 80)
+                    .blur(radius: 16)
+                    .offset(x: geo.size.width - 50, y: 50)
+            }
+            .clipped()
+
+            // Контент
+            VStack(alignment: .leading, spacing: 6) {
+                Text("ВЫГОДА СЕГОДНЯ")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .kerning(1.2)
+
+                if totalSavings > 0 {
+                    Text("\(formattedNumber(totalSavings)) ₸")
+                        .font(.system(size: 30, weight: .black))
+                        .foregroundStyle(.white)
+
+                    Text("на \(discountedCount) товарах со скидкой")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.55))
+                } else {
+                    Text("Загружаем цены…")
+                        .font(.system(size: 26, weight: .black))
+                        .foregroundStyle(.white)
+                }
+
+                HStack(spacing: 7) {
+                    ForEach(storeAssets, id: \.asset) { item in
+                        Image(item.asset)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 28, height: 28)
+                            .background(item.color, in: Circle())
+                            .clipShape(Circle())
+                    }
+                }
+                .padding(.top, 2)
+            }
+            .padding(18)
+        }
+        .frame(height: 148)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func formattedNumber(_ n: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        return formatter.string(from: NSNumber(value: n)) ?? "\(n)"
     }
 }
