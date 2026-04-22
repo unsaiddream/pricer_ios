@@ -57,10 +57,7 @@ struct ProductCard: View {
                     if let price = bestStore?.price {
                         Text("\(Int(price)) ₸")
                             .font(.system(size: 17, weight: .bold))
-                            .foregroundStyle(Color.savingsGreen)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Color.savingsGreen.opacity(0.1), in: RoundedRectangle(cornerRadius: 5))
+                            .foregroundStyle(Color.appForeground)
                     }
                     if let prev = bestStore?.previousPrice,
                        let cur = bestStore?.price, prev > cur {
@@ -78,17 +75,10 @@ struct ProductCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(minHeight: 36)
 
-                if let bestName = bestStore?.chainName {
-                    HStack(spacing: 4) {
-                        Image(systemName: "storefront")
-                            .font(.system(size: 9, weight: .semibold))
-                        Text(bestName)
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .foregroundStyle(Color.savingsGreen)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.savingsGreen.opacity(0.1), in: RoundedRectangle(cornerRadius: 5))
+                if let storeCount = product.stores?.count, storeCount > 0 {
+                    Text("\(storeCount) \(storeWord(storeCount))")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.appMuted)
                 }
             }
             .padding(.horizontal, 10)
@@ -104,10 +94,10 @@ struct ProductCard: View {
                     Text("В корзину")
                         .font(.system(size: 12, weight: .medium))
                 }
-                .foregroundStyle(Color.savingsGreen)
+                .foregroundStyle(Color.appPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 36)
-                .background(Color.savingsGreen.opacity(0.12))
+                .background(Color.appPrimary.opacity(0.1))
             }
             .padding(.horizontal, 10)
         }
