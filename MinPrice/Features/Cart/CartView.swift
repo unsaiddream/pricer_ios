@@ -79,6 +79,7 @@ private struct CartSummaryView: View {
     let onRemove: (String) -> Void
 
     @EnvironmentObject var cityStore: CityStore
+    @EnvironmentObject var cartStore: CartStore
 
     var body: some View {
         ScrollView {
