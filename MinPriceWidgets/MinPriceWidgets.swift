@@ -466,117 +466,80 @@ private struct FavMedium: View {
     }
 }
 
-// Large — hero + 2 mini cards
+// Large — все товары одинаковыми строками
 private struct FavLarge: View {
     let products: [WidgetProduct]
     let images: [String: UIImage]
 
     var body: some View {
         VStack(spacing: 8) {
-            FavHeroCard(product: products[0], images: images)
-
-            if products.count > 1 {
-                HStack(spacing: 8) {
-                    ForEach(products.dropFirst().prefix(2)) { p in
-                        FavMiniCard(product: p, images: images)
-                    }
-                }
-                .frame(height: 115)
+            ForEach(Array(products.prefix(3).enumerated()), id: \.element.id) { _, p in
+                FavLargeRow(product: p, images: images)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .padding(8)
     }
 }
 
-private struct FavHeroCard: View {
+private struct FavLargeRow: View {
     let product: WidgetProduct
     let images: [String: UIImage]
 
     var body: some View {
         HStack(spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                WProductImage(image: images[product.id])
-                    .frame(maxHeight: .infinity).clipped()
-                if let pct = product.dropPercent {
-                    WDiscountSticker(percent: pct, size: 50)
-                        .offset(x: 4, y: -4).padding(.trailing, 4).padding(.top, 4)
-                }
-            }
-            .frame(width: 140)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(8)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(product.title)
-                    .font(.system(size: 13, weight: .bold)).foregroundStyle(Color.wText)
-                    .lineLimit(2)
-
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(fmt(product.minPrice))
-                        .font(.system(size: 18, weight: .bold)).foregroundStyle(Color.wText)
-                    if let prev = product.prevMinPrice, prev > product.minPrice {
-                        Text(fmt(prev))
-                            .font(.system(size: 10)).foregroundStyle(Color.wMuted).strikethrough()
-                    }
-                }
-
-                if let saved = product.savings {
-                    Text("−\(fmt(saved))")
-                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.wGreen)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.wGreen.opacity(0.10), in: Capsule())
-                }
-
-                Divider().overlay(Color.wBorder).padding(.vertical, 2)
-
-                VStack(spacing: 3) {
-                    ForEach(Array(product.stores.prefix(4).enumerated()), id: \.offset) { i, store in
-                        WStoreRow(store: store, isBest: i == 0)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 10).padding(.bottom, 8).padding(.trailing, 8)
-        }
-        .background(Color.wCard)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.wBorder, lineWidth: 1))
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 1)
-    }
-}
-
-private struct FavMiniCard: View {
-    let product: WidgetProduct
-    let images: [String: UIImage]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+            // Фото слева
             ZStack(alignment: .topTrailing) {
                 WProductImage(image: images[product.id])
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
                 if let pct = product.dropPercent {
-                    WDiscountSticker(percent: pct, size: 32)
-                        .offset(x: 3, y: -3).padding(.trailing, 3).padding(.top, 3)
+                    WDiscountSticker(percent: pct, size: 36)
+                        .offset(x: 3, y: -3).padding(.trailing, 3).padding(.top, 4)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 65, maxHeight: 65)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(width: 100)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(8)
 
-            VStack(alignment: .leading, spacing: 2) {
+            // Текст и магазины справа
+            VStack(alignment: .leading, spacing: 3) {
                 Text(product.title)
-                    .font(.system(size: 9)).foregroundStyle(Color.wText.opacity(0.85))
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                Text(fmt(product.minPrice))
-                    .font(.system(size: 11, weight: .bold)).foregroundStyle(Color.wText)
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.wText)
+                    .lineLimit(2)
+
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(fmt(product.minPrice))
+                        .font(.system(size: 15, weight: .bold)).foregroundStyle(Color.wText)
+                    if let prev = product.prevMinPrice, prev > product.minPrice {
+                        Text(fmt(prev))
+                            .font(.system(size: 9)).foregroundStyle(Color.wMuted).strikethrough()
+                    }
+                }
+
+                if let saved = product.savings {
+                    Text("−\(fmt(saved))")
+                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(Color.wGreen)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Color.wGreen.opacity(0.10), in: Capsule())
+                }
+
+                Divider().overlay(Color.wBorder).padding(.vertical, 1)
+
+                VStack(spacing: 2) {
+                    ForEach(Array(product.stores.prefix(2).enumerated()), id: \.offset) { i, store in
+                        WStoreRow(store: store, isBest: i == 0)
+                    }
+                }
+
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 6).padding(.top, 5).padding(.bottom, 6)
+            .padding(.top, 8).padding(.bottom, 8).padding(.trailing, 8)
         }
-        .frame(maxWidth: .infinity)
         .background(Color.wCard)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.wBorder, lineWidth: 1))
-        .shadow(color: .black.opacity(0.04), radius: 3, x: 0, y: 1)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.wBorder, lineWidth: 1))
+        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 1)
     }
 }
 
