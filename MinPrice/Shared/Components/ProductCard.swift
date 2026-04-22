@@ -75,15 +75,27 @@ struct ProductCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(minHeight: 36)
 
-                if let storeCount = product.stores?.count, storeCount > 0 {
-                    Text("\(storeCount) \(storeWord(storeCount))")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.appMuted)
-                }
             }
             .padding(.horizontal, 10)
             .padding(.top, 10)
-            .padding(.bottom, 8)
+            .padding(.bottom, 4)
+
+            // MARK: Магазины
+            if let stores = product.stores {
+                VStack(spacing: 0) {
+                    Divider().overlay(Color.appBorder)
+                    VStack(spacing: 2) {
+                        ForEach(stores.prefix(3)) { store in
+                            StoreRow(store: store, isBest: store.storeId == bestStore?.storeId)
+                        }
+                        ForEach(0..<max(0, 3 - stores.count), id: \.self) { _ in
+                            Color.clear.frame(height: 18)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                }
+            }
 
             // MARK: Кнопка
             Divider().overlay(Color.appBorder)
@@ -97,7 +109,6 @@ struct ProductCard: View {
                 .foregroundStyle(Color.appPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 36)
-                .background(Color.appPrimary.opacity(0.1))
             }
             .padding(.horizontal, 10)
         }
@@ -107,13 +118,6 @@ struct ProductCard: View {
         .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 3)
     }
 
-    private func storeWord(_ n: Int) -> String {
-        switch n % 10 {
-        case 1 where n % 100 != 11: return "магазин"
-        case 2...4 where !(11...14).contains(n % 100): return "магазина"
-        default: return "магазинов"
-        }
-    }
 }
 
 // MARK: - Discount sticker
@@ -133,5 +137,47 @@ private struct DiscountSticker: View {
             }
         }
         .frame(width: 54, height: 54)
+    }
+}
+
+// MARK: - Store row
+
+private struct StoreRow: View {
+    let store: StorePrice
+    let isBest: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            StoreLogoView(url: store.logoURL, source: store.storeSource, size: 18)
+
+            Text(store.chainName)
+                .font(.system(size: 11))
+                .foregroundStyle(Color.appMuted)
+                .lineLimit(1)
+
+            if isBest {
+                Text("min")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Color.appPrimary)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 1)
+                    .background(Color.appPrimary.opacity(0.1), in: RoundedRectangle(cornerRadius: 3))
+            }
+
+            Spacer()
+
+            if let prev = store.previousPrice, prev > store.price {
+                Text("\(Int(prev)) ₸")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.appMuted.opacity(0.6))
+                    .strikethrough()
+            }
+
+            Text("\(Int(store.price)) ₸")
+                .font(.system(size: 11, weight: isBest ? .semibold : .regular))
+                .foregroundStyle(isBest ? Color.appForeground : Color.appMuted)
+        }
+        .frame(height: 18)
+        .opacity(store.inStock ? 1 : 0.5)
     }
 }
