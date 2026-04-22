@@ -5,6 +5,7 @@ struct MinPriceApp: App {
     @StateObject private var cityStore = CityStore()
     @StateObject private var cartStore = CartStore()
     @StateObject private var favoritesStore = FavoritesStore()
+    @State private var isReady = false
 
     init() {
         applyGlobalFonts()
@@ -12,16 +13,28 @@ struct MinPriceApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(cityStore)
-                .environmentObject(cartStore)
-                .environmentObject(favoritesStore)
-                .preferredColorScheme(.light)
-                .task {
-                    await APIClient.shared.initSession()
-                    await cityStore.loadCities()
-                    await cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
+            ZStack {
+                if isReady {
+                    ContentView()
+                        .environmentObject(cityStore)
+                        .environmentObject(cartStore)
+                        .environmentObject(favoritesStore)
+                        .transition(.opacity)
                 }
+                if !isReady {
+                    SplashView()
+                        .transition(.opacity)
+                }
+            }
+            .preferredColorScheme(.light)
+            .task {
+                await APIClient.shared.initSession()
+                await cityStore.loadCities()
+                await cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    isReady = true
+                }
+            }
         }
     }
 
