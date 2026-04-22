@@ -12,54 +12,10 @@ struct ProductView: View {
     @State private var addedToCart = false
     @State private var shareItem: ShareImageItem? = nil
     @State private var loadedProductImage: UIImage? = nil
-    @State private var dragOffset: CGFloat = 0
-    @State private var isSwipeActive = false
     @Environment(\.dismiss) private var dismiss
 
-    private var screenWidth: CGFloat { UIScreen.main.bounds.width }
-
     var body: some View {
-        ZStack {
-            // Swipe hint icons (behind card, revealed as it slides)
-            HStack {
-                // Dismiss — right swipe
-                ZStack {
-                    Circle()
-                        .fill(Color.appPrimary.opacity(0.18))
-                        .frame(width: 72, height: 72)
-                    Circle()
-                        .stroke(Color.appPrimary.opacity(0.35), lineWidth: 1.5)
-                        .frame(width: 72, height: 72)
-                    Image(systemName: "arrow.left")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(Color.appPrimary)
-                }
-                .scaleEffect(max(0.6, min(1.3, 0.6 + max(0.0, dragOffset - 10.0) / 110.0)))
-                .opacity(Double(max(0.0, min(1.0, (dragOffset - 10.0) / 60.0))))
-                .padding(.leading, 28)
-
-                Spacer()
-
-                // Cart — left swipe
-                ZStack {
-                    Circle()
-                        .fill(Color.green.opacity(0.18))
-                        .frame(width: 72, height: 72)
-                    Circle()
-                        .stroke(Color.green.opacity(0.35), lineWidth: 1.5)
-                        .frame(width: 72, height: 72)
-                    Image(systemName: "cart.badge.plus")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(.green)
-                }
-                .scaleEffect(max(0.6, min(1.3, 0.6 + max(0.0, -dragOffset - 10.0) / 110.0)))
-                .opacity(Double(max(0.0, min(1.0, (-dragOffset - 10.0) / 60.0))))
-                .padding(.trailing, 28)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // Main card
-            ScrollView {
+        ScrollView {
                 if vm.isLoading {
                     SkeletonProductDetail()
                 } else if let product = vm.product {
@@ -116,28 +72,6 @@ struct ProductView: View {
             }
             .scrollIndicators(.hidden)
             .background(Color.appBackground)
-            .scrollDisabled(isSwipeActive)
-            // Colored tint on card face as it flies off
-            .overlay {
-                let rightProgress = Double(max(0.0, min(1.0, (dragOffset - 10.0) / 120.0)))
-                let leftProgress  = Double(max(0.0, min(1.0, (-dragOffset - 10.0) / 120.0)))
-                Color.appPrimary.opacity(rightProgress * 0.08)
-                    .allowsHitTesting(false)
-                Color.green.opacity(leftProgress * 0.08)
-                    .allowsHitTesting(false)
-            }
-            .offset(x: dragOffset)
-            .rotationEffect(
-                .degrees(Double(dragOffset) / 22.0),
-                anchor: UnitPoint(x: 0.5, y: 1.15)
-            )
-            .scaleEffect(max(0.93, 1.0 - abs(Double(dragOffset)) / Double(screenWidth * 2.8)))
-            .opacity({
-                let ratio = abs(dragOffset) / (screenWidth * 1.1)
-                return Double(min(1.0, max(0.0, 1.0 - ratio)))
-            }())
-        }
-        .background(Color.appBackground)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .preference(key: HideBottomBarsKey.self, value: true)
@@ -188,63 +122,6 @@ struct ProductView: View {
         .task {
             await vm.load(uuid: uuid, cityId: cityStore.selectedCityId)
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 10, coordinateSpace: .local)
-                .onChanged { value in
-                    let dx = value.translation.width
-                    let dy = value.translation.height
-
-                    if !isSwipeActive {
-                        // Commit to horizontal only when clearly horizontal (2:1 ratio + min 15pt)
-                        guard abs(dx) > abs(dy) * 2.0 && abs(dx) > 15 else { return }
-                        isSwipeActive = true
-                    }
-
-                    dragOffset = dx
-                }
-                .onEnded { value in
-                    let dx = value.translation.width
-                    let velX = value.velocity.width
-
-                    defer { isSwipeActive = false }
-
-                    guard isSwipeActive else {
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.65)) { dragOffset = 0 }
-                        return
-                    }
-
-                    // Учитываем скорость: быстрый флик — меньший порог дистанции
-                    let triggeredRight = dx > 60 || velX > 500
-                    let triggeredLeft  = dx < -50 || velX < -500
-
-                    if triggeredRight {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
-                            dragOffset = screenWidth * 1.5
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { dismiss() }
-                    } else if triggeredLeft {
-                        // Bounce: уйти влево, отпружинить назад
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
-                            dragOffset = -screenWidth * 0.32
-                        }
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.58).delay(0.18)) {
-                            dragOffset = 0
-                        }
-                        guard !addedToCart else { return }
-                        Task {
-                            do {
-                                try await cartStore.quickAdd(productUuid: uuid)
-                                withAnimation { addedToCart = true }
-                                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                                withAnimation { addedToCart = false }
-                            } catch {}
-                        }
-                    } else {
-                        // Snap back с лёгким отскоком
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.62)) { dragOffset = 0 }
-                    }
-                }
-        )
     }
 }
 
