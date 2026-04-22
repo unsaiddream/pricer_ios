@@ -32,7 +32,6 @@ enum WidgetDataStore {
             let widgetStores: [WidgetStoreData]
             if !rangeStores.isEmpty {
                 widgetStores = rangeStores
-                    .filter { $0.inStock }
                     .sorted { $0.price < $1.price }
                     .prefix(5)
                     .map { s in
@@ -41,7 +40,6 @@ enum WidgetDataStore {
                     }
             } else {
                 widgetStores = searchStores
-                    .filter { $0.inStock }
                     .sorted { $0.price < $1.price }
                     .prefix(5)
                     .map { s in

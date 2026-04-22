@@ -315,6 +315,7 @@ private struct WStoreRow: View {
                 .font(.system(size: 11, weight: isBest ? .bold : .regular))
                 .foregroundStyle(isBest ? Color.wText : Color.wMuted)
         }
+        .opacity(store.inStock ? 1.0 : 0.45)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(isBest ? Color.wPrimary.opacity(0.06) : Color.clear,
