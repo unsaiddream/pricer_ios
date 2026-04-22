@@ -228,9 +228,12 @@ private struct PriceRangeBanner: View {
                         .foregroundStyle(Color.savingsGreen)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(Color.savingsGreen.opacity(0.06))
-                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.savingsGreen.opacity(0.4), lineWidth: 1))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .background {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(.ultraThinMaterial)
+                                .overlay(RoundedRectangle(cornerRadius: 8).fill(Color.savingsGreen.opacity(0.08)))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.savingsGreen.opacity(0.35), lineWidth: 1))
+                        }
                     Text("до \(Int(range.max)) ₸")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.appMuted)
@@ -309,11 +312,14 @@ private struct StorePricesSection: View {
                     }
                     .padding(.vertical, 10)
                     .padding(.horizontal, 14)
-                    .background(isBest ? Color.savingsGreen.opacity(0.06) : Color.clear)
-                    .overlay(
-                        isBest ? RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.savingsGreen.opacity(0.4), lineWidth: 1) : nil
-                    )
+                    .background {
+                        if isBest {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(.ultraThinMaterial)
+                                .overlay(RoundedRectangle(cornerRadius: 10).fill(Color.savingsGreen.opacity(0.07)))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.savingsGreen.opacity(0.35), lineWidth: 1))
+                        }
+                    }
                     .opacity(store.inStock ? 1 : 0.5)
 
                     if idx < stores.count - 1 {
