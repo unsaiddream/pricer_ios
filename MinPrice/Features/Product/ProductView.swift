@@ -138,55 +138,40 @@ private struct ProductActionBar: View {
     @State private var isCollapsed = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Кнопки избранное + свернуть — всегда видны
-            HStack(spacing: 0) {
-                Spacer()
-                VStack(spacing: 4) {
-                    // Стрелка-свернуть
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                            isCollapsed.toggle()
-                        }
-                    } label: {
-                        Image(systemName: isCollapsed ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Color.appForeground.opacity(0.6))
-                            .frame(width: 46, height: 20)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5))
+        HStack {
+            Spacer()
+            VStack(spacing: 6) {
+                // Стрелка — всегда сверху
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        isCollapsed.toggle()
                     }
-                    .buttonStyle(.plain)
+                } label: {
+                    Image(systemName: isCollapsed ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.appForeground.opacity(0.6))
+                        .frame(width: 46, height: 20)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5))
+                }
+                .buttonStyle(.plain)
 
+                if !isCollapsed {
                     // Избранное
                     Button(action: onFavorite) {
                         Image(systemName: favorited ? "star.fill" : "star")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(favorited ? Color.appPrimary : Color.appForeground)
-                            .frame(width: 46, height: 30)
-                            .background {
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(.ultraThinMaterial)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(favorited ? Color.appPrimary.opacity(0.12) : Color.clear)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(favorited ? Color.appPrimary.opacity(0.45) : Color.white.opacity(0.3), lineWidth: 0.5)
-                                    )
-                            }
+                            .frame(width: 46, height: 46)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay(Circle().stroke(
+                                favorited ? Color.appPrimary.opacity(0.45) : Color.white.opacity(0.3),
+                                lineWidth: favorited ? 1 : 0.5
+                            ))
                     }
                     .buttonStyle(.plain)
                     .animation(.spring(response: 0.3, dampingFraction: 0.55), value: favorited)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 4)
 
-            // Основные кнопки — прячутся при isCollapsed
-            if !isCollapsed {
-                HStack {
                     // Назад
                     Button(action: onBack) {
                         Image(systemName: "chevron.left")
@@ -197,8 +182,6 @@ private struct ProductActionBar: View {
                             .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
                     }
                     .buttonStyle(.plain)
-
-                    Spacer()
 
                     // В корзину
                     Button(action: onAddToCart) {
@@ -212,8 +195,6 @@ private struct ProductActionBar: View {
                     .buttonStyle(.plain)
                     .animation(.easeInOut(duration: 0.2), value: added)
 
-                    Spacer()
-
                     // Поделиться
                     Button(action: onShare) {
                         Image(systemName: "square.and.arrow.up")
@@ -225,11 +206,11 @@ private struct ProductActionBar: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 16)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            .transition(.opacity)
         }
-        .padding(.bottom, 4)
+        .padding(.trailing, 16)
+        .padding(.bottom, 8)
         .padding(.top, 4)
     }
 }
