@@ -20,11 +20,9 @@ struct HomeView: View {
                         .padding(.bottom, 12)
 
                     // Виджет экономии
-                    if !vm.bestDeals.isEmpty || !vm.priceDrops.isEmpty {
-                        SavingsBanner(products: vm.bestDeals + vm.priceDrops)
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 16)
-                    }
+                    SavingsBanner(cart: cartStore.cart)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 16)
 
                     if vm.isLoading {
                         SkeletonGrid()
@@ -263,28 +261,35 @@ private struct SkeletonGrid: View {
 // MARK: - Savings Banner
 
 private struct SavingsBanner: View {
-    let products: [Product]
+    let cart: Cart?
 
+    // Сколько сэкономил пользователь на товарах в корзине
     private var totalSavings: Int {
-        products.compactMap { p -> Int? in
-            guard let best = p.stores?.filter({ $0.inStock }).min(by: { $0.price < $1.price }),
-                  let prev = best.previousPrice, prev > best.price else { return nil }
-            return Int(prev - best.price)
+        guard let items = cart?.items else { return 0 }
+        return items.compactMap { item -> Int? in
+            guard let best = item.product.stores?
+                    .filter({ $0.inStock })
+                    .min(by: { $0.price < $1.price }),
+                  let prev = best.previousPrice, prev > best.price
+            else { return nil }
+            return Int((prev - best.price) * Double(item.quantity))
         }.reduce(0, +)
     }
 
-    private var discountedCount: Int {
-        products.filter { p in
-            guard let best = p.stores?.filter({ $0.inStock }).min(by: { $0.price < $1.price }) else { return false }
-            return (best.previousPrice ?? 0) > best.price
-        }.count
+    private var purchaseCount: Int { cart?.itemsCount ?? 0 }
+
+    private var currentMonth: String {
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "ru_RU")
+        fmt.dateFormat = "LLLL"
+        return fmt.string(from: Date()).uppercased()
     }
 
     private let storeAssets: [(asset: String, color: Color)] = [
-        ("store_magnum",     Color(red: 0.90, green: 0.21, blue: 0.21)),
-        ("store_arbuz",      Color(red: 0.26, green: 0.63, blue: 0.28)),
-        ("store_airba_fresh",Color(red: 0.98, green: 0.55, blue: 0.00)),
-        ("store_small",      Color(red: 0.12, green: 0.53, blue: 0.90)),
+        ("store_magnum",      Color(red: 0.90, green: 0.21, blue: 0.21)),
+        ("store_arbuz",       Color(red: 0.26, green: 0.63, blue: 0.28)),
+        ("store_airba_fresh", Color(red: 0.98, green: 0.55, blue: 0.00)),
+        ("store_small",       Color(red: 0.12, green: 0.53, blue: 0.90)),
     ]
 
     var body: some View {
@@ -300,7 +305,6 @@ private struct SavingsBanner: View {
                     .frame(width: 130, height: 130)
                     .blur(radius: 28)
                     .offset(x: geo.size.width - 80, y: -20)
-
                 Circle()
                     .fill(Color.appPrimary.opacity(0.10))
                     .frame(width: 80, height: 80)
@@ -311,7 +315,7 @@ private struct SavingsBanner: View {
 
             // Контент
             VStack(alignment: .leading, spacing: 6) {
-                Text("ВЫГОДА СЕГОДНЯ")
+                Text("ВЫ СЭКОНОМИЛИ · \(currentMonth)")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.45))
                     .kerning(1.2)
@@ -320,14 +324,23 @@ private struct SavingsBanner: View {
                     Text("\(formattedNumber(totalSavings)) ₸")
                         .font(.system(size: 30, weight: .black))
                         .foregroundStyle(.white)
-
-                    Text("на \(discountedCount) товарах со скидкой")
+                    Text("на \(purchaseCount) \(purchaseWord(purchaseCount)) в корзине")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.55))
+                } else if purchaseCount > 0 {
+                    Text("0 ₸")
+                        .font(.system(size: 30, weight: .black))
+                        .foregroundStyle(.white)
+                    Text("Все товары по честной цене")
                         .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.55))
                 } else {
-                    Text("Загружаем цены…")
-                        .font(.system(size: 26, weight: .black))
-                        .foregroundStyle(.white)
+                    Text("0 ₸")
+                        .font(.system(size: 30, weight: .black))
+                        .foregroundStyle(.white.opacity(0.5))
+                    Text("Добавляйте товары со скидкой")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.45))
                 }
 
                 HStack(spacing: 7) {
@@ -346,6 +359,14 @@ private struct SavingsBanner: View {
         }
         .frame(height: 148)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func purchaseWord(_ n: Int) -> String {
+        switch n % 10 {
+        case 1 where n % 100 != 11: return "покупке"
+        case 2...4 where !(11...14).contains(n % 100): return "покупках"
+        default: return "покупках"
+        }
     }
 
     private func formattedNumber(_ n: Int) -> String {
