@@ -288,8 +288,8 @@ private struct SavingsBanner: View {
     private let storeAssets: [(asset: String, color: Color)] = [
         ("store_magnum",      Color(red: 0.90, green: 0.21, blue: 0.21)),
         ("store_arbuz",       Color(red: 0.26, green: 0.63, blue: 0.28)),
-        ("store_airba_fresh", Color(red: 0.98, green: 0.55, blue: 0.00)),
-        ("store_small",       Color(red: 0.12, green: 0.53, blue: 0.90)),
+        ("store_airba_fresh", Color.white),
+        ("store_small",       Color.white),
     ]
 
     var body: some View {
