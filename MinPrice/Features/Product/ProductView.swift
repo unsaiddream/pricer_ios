@@ -160,12 +160,12 @@ private struct ProductActionBar: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 46)
                 .background(
-                    added ? Color.green : Color.appPrimary.opacity(0.22),
+                    added ? Color.green : Color.appPrimary.opacity(0.18),
                     in: Capsule()
                 )
                 .overlay(Capsule().stroke(
-                    added ? Color.clear : Color.appPrimary.opacity(0.5),
-                    lineWidth: 1
+                    added ? Color.clear : Color.appPrimary,
+                    lineWidth: 1.5
                 ))
             }
             .buttonStyle(.plain)
@@ -209,7 +209,7 @@ private struct ProductActionBar: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 20)
+        .padding(.bottom, 8)
         .padding(.top, 8)
     }
 }
