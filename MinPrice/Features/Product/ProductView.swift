@@ -135,82 +135,112 @@ private struct ProductActionBar: View {
     let onFavorite: () -> Void
     let onShare: () -> Void
 
+    @State private var isCollapsed = false
+
     var body: some View {
-        HStack(spacing: 10) {
-            // Назад
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.appForeground)
-                    .frame(width: 46, height: 46)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
-            }
-            .buttonStyle(.plain)
+        VStack(spacing: 0) {
+            // Кнопки избранное + свернуть — всегда видны
+            HStack(spacing: 0) {
+                Spacer()
+                VStack(spacing: 4) {
+                    // Стрелка-свернуть
+                    Button {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                            isCollapsed.toggle()
+                        }
+                    } label: {
+                        Image(systemName: isCollapsed ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Color.appForeground.opacity(0.6))
+                            .frame(width: 46, height: 20)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5))
+                    }
+                    .buttonStyle(.plain)
 
-            // В корзину
-            Button(action: onAddToCart) {
-                HStack(spacing: 6) {
-                    Image(systemName: added ? "checkmark.circle.fill" : "cart.badge.plus")
-                        .font(.system(size: 15, weight: .semibold))
-                    Text(added ? "Добавлено!" : "В корзину")
-                        .font(.jb(14, weight: .semibold))
+                    // Избранное
+                    Button(action: onFavorite) {
+                        Image(systemName: favorited ? "star.fill" : "star")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(favorited ? Color.appPrimary : Color.appForeground)
+                            .frame(width: 46, height: 30)
+                            .background {
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(favorited ? Color.appPrimary.opacity(0.12) : Color.clear)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(favorited ? Color.appPrimary.opacity(0.45) : Color.white.opacity(0.3), lineWidth: 0.5)
+                                    )
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.55), value: favorited)
                 }
-                .foregroundStyle(added ? .white : Color.appPrimary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 46)
-                .background(
-                    added ? Color.green : Color.appPrimary.opacity(0.18),
-                    in: Capsule()
-                )
-                .overlay(Capsule().stroke(
-                    added ? Color.clear : Color.appPrimary,
-                    lineWidth: 1.5
-                ))
             }
-            .buttonStyle(.plain)
-            .animation(.easeInOut(duration: 0.2), value: added)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
 
-            // Поделиться (на уровне корзины), звёздочка — overlay сверху
-            Button(action: onShare) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Color.appForeground)
-                    .frame(width: 46, height: 46)
-                    .background {
-                        Circle()
-                            .fill(.ultraThinMaterial)
+            // Основные кнопки — прячутся при isCollapsed
+            if !isCollapsed {
+                HStack(spacing: 10) {
+                    // Назад
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.appForeground)
+                            .frame(width: 46, height: 46)
+                            .background(.ultraThinMaterial, in: Circle())
                             .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
                     }
-            }
-            .buttonStyle(.plain)
-            .overlay(alignment: .top) {
-                Button(action: onFavorite) {
-                    Image(systemName: favorited ? "star.fill" : "star")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(favorited ? Color.appPrimary : Color.appForeground)
-                        .frame(width: 46, height: 30)
-                        .background {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(.ultraThinMaterial)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(favorited ? Color.appPrimary.opacity(0.12) : Color.clear)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(favorited ? Color.appPrimary.opacity(0.45) : Color.white.opacity(0.3), lineWidth: 0.5)
-                                )
+                    .buttonStyle(.plain)
+
+                    // В корзину
+                    Button(action: onAddToCart) {
+                        HStack(spacing: 6) {
+                            Image(systemName: added ? "checkmark.circle.fill" : "cart.badge.plus")
+                                .font(.system(size: 15, weight: .semibold))
+                            Text(added ? "Добавлено!" : "В корзину")
+                                .font(.jb(14, weight: .semibold))
                         }
+                        .foregroundStyle(added ? .white : Color.appPrimary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 46)
+                        .background(
+                            added ? Color.green : Color.appPrimary.opacity(0.28),
+                            in: Capsule()
+                        )
+                        .overlay(Capsule().stroke(
+                            added ? Color.clear : Color.appPrimary,
+                            lineWidth: 1.5
+                        ))
+                    }
+                    .buttonStyle(.plain)
+                    .animation(.easeInOut(duration: 0.2), value: added)
+
+                    // Поделиться
+                    Button(action: onShare) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Color.appForeground)
+                            .frame(width: 46, height: 46)
+                            .background {
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
+                            }
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .animation(.spring(response: 0.3, dampingFraction: 0.55), value: favorited)
-                .offset(y: -36)
+                .padding(.horizontal, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
-        .padding(.top, 8)
+        .padding(.bottom, 4)
+        .padding(.top, 4)
     }
 }
 
