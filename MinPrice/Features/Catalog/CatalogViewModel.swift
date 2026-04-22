@@ -13,6 +13,10 @@ final class CatalogViewModel: ObservableObject {
 
     func loadCategories() async {
         guard categories.isEmpty else { return }
+        await refreshCategories()
+    }
+
+    func refreshCategories() async {
         do {
             let response = try await api.fetch(CategoriesResponse.self, path: Endpoint.categories())
             categories = response.categories

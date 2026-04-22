@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import UserNotifications
 
 @MainActor
 final class CartStore: ObservableObject {
@@ -14,6 +16,8 @@ final class CartStore: ObservableObject {
             let response = try await api.fetch(CartsResponse.self, path: Endpoint.carts())
             cart = response.results.first(where: { $0.isActive })
             itemsCount = cart?.itemsCount ?? 0
+            syncWidget()
+            updateBadge()
         } catch {}
     }
 
@@ -23,11 +27,41 @@ final class CartStore: ObservableObject {
             let response = try await api.post(QuickAddResponse.self, path: Endpoint.cartQuickAdd(), body: body)
             cart = try? await api.fetch(Cart.self, path: Endpoint.cart(response.cartUuid))
             itemsCount = response.itemsCount
+            syncWidget()
+            updateBadge()
+            HapticManager.success()
             showToast("Товар добавлен")
         } catch {
-            print("❌ addItem failed: \(error)")
+            HapticManager.error()
             showToast("Не удалось добавить товар", isError: true)
             throw error
+        }
+    }
+
+    private func syncWidget() {
+        var total: Double = 0
+        if let items = cart?.items {
+            for item in items {
+                let unitPrice: Double = item.product.cheapestPrice ?? 0
+                total += unitPrice * Double(item.quantity)
+            }
+        }
+        WidgetDataStore.syncCart(count: itemsCount, total: total)
+    }
+
+    private func updateBadge() {
+        let count = itemsCount
+        if #available(iOS 16.0, *) {
+            Task {
+                let center = UNUserNotificationCenter.current()
+                let status = await center.notificationSettings().authorizationStatus
+                if status == .notDetermined {
+                    try? await center.requestAuthorization(options: [.badge])
+                }
+                try? await center.setBadgeCount(count)
+            }
+        } else {
+            UIApplication.shared.applicationIconBadgeNumber = count
         }
     }
 
@@ -39,5 +73,4 @@ final class CartStore: ObservableObject {
             toastMessage = nil
         }
     }
-
 }

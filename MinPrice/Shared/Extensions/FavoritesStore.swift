@@ -9,10 +9,13 @@ final class FavoritesStore: ObservableObject {
     init() { load() }
 
     func toggle(_ product: Product) {
-        if isFavorited(product.uuid) {
-            favorites.removeAll { $0.uuid == product.uuid }
-        } else {
+        let adding = !isFavorited(product.uuid)
+        if adding {
             favorites.insert(product, at: 0)
+            HapticManager.impact(.medium)
+        } else {
+            favorites.removeAll { $0.uuid == product.uuid }
+            HapticManager.impact(.light)
         }
         save()
     }
@@ -25,11 +28,13 @@ final class FavoritesStore: ObservableObject {
         if let data = try? JSONEncoder().encode(favorites) {
             UserDefaults.standard.set(data, forKey: key)
         }
+        WidgetDataStore.syncFavorites(favorites)
     }
 
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: key),
               let products = try? JSONDecoder().decode([Product].self, from: data) else { return }
         favorites = products
+        WidgetDataStore.syncFavorites(favorites)
     }
 }

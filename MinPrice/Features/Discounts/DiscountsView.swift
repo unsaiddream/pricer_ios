@@ -82,6 +82,7 @@ private struct ModePicker: View {
         HStack(spacing: 8) {
             ForEach(DiscountsMode.allCases, id: \.self) { mode in
                 Button {
+                    HapticManager.selection()
                     withAnimation(.easeInOut(duration: 0.2)) { selected = mode }
                 } label: {
                     HStack(spacing: 5) {

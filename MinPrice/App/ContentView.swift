@@ -11,6 +11,8 @@ struct HideBottomBarsKey: PreferenceKey {
 struct ContentView: View {
     @State private var selectedTab: Tab = .home
     @State private var showSearch = false
+    @State private var showScanner = false
+    @State private var scanResultQuery: String? = nil
     @State private var hideBottomBars = false
     @EnvironmentObject var cartStore: CartStore
     @EnvironmentObject var favoritesStore: FavoritesStore
@@ -56,7 +58,21 @@ struct ContentView: View {
                     }
             )
             .sheet(isPresented: $showSearch) {
-                SearchView()
+                SearchView(initialQuery: scanResultQuery)
+                    .onDisappear { scanResultQuery = nil }
+            }
+            .fullScreenCover(isPresented: $showScanner) {
+                BarcodeScannerView(
+                    onScan: { barcode in
+                        showScanner = false
+                        scanResultQuery = barcode
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            showSearch = true
+                        }
+                    },
+                    onDismiss: { showScanner = false }
+                )
+                .ignoresSafeArea()
             }
             .onPreferenceChange(HideBottomBarsKey.self) { value in
                 withAnimation(.easeInOut(duration: 0.22)) {
@@ -69,7 +85,7 @@ struct ContentView: View {
                 BottomSearchBar {
                     showSearch = true
                 } onScan: {
-                    showSearch = true
+                    showScanner = true
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 104)

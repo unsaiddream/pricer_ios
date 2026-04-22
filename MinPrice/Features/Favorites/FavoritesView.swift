@@ -34,12 +34,27 @@ struct FavoritesView: View {
                                     }
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        withAnimation { favoritesStore.toggle(product) }
+                                    } label: {
+                                        Label("Удалить из избранного", systemImage: "star.slash")
+                                    }
+                                    Button {
+                                        Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
+                                    } label: {
+                                        Label("В корзину", systemImage: "cart.badge.plus")
+                                    }
+                                }
                             }
                         }
                         .padding(16)
                         .padding(.bottom, 160)
                     }
                     .background(Color.appBackground)
+                    .refreshable {
+                        WidgetDataStore.syncFavorites(favoritesStore.favorites)
+                    }
                 }
             }
             .background(Color.appBackground)

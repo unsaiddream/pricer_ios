@@ -29,11 +29,13 @@ enum Tab: Int, CaseIterable {
 struct CustomTabBar: View {
     @Binding var selected: Tab
     @EnvironmentObject var cartStore: CartStore
+    @EnvironmentObject var favoritesStore: FavoritesStore
 
     var body: some View {
         HStack(spacing: 0) {
             ForEach(Tab.allCases, id: \.self) { tab in
                 Button {
+                    if selected != tab { HapticManager.selection() }
                     selected = tab
                 } label: {
                     VStack(spacing: 4) {
@@ -60,6 +62,15 @@ struct CustomTabBar: View {
                                     .padding(.horizontal, 4)
                                     .padding(.vertical, 2)
                                     .background(Color.discountRed, in: Capsule())
+                                    .offset(x: 8, y: -6)
+                            }
+                            if tab == .favorites && favoritesStore.favorites.count > 0 {
+                                Text("\(min(favoritesStore.favorites.count, 99))")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 2)
+                                    .background(Color.appPrimary, in: Capsule())
                                     .offset(x: 8, y: -6)
                             }
                         }

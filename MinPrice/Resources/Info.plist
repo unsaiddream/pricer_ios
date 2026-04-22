@@ -42,6 +42,8 @@
 		<string>tg</string>
 		<string>barcelona</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Для сканирования штрихкодов товаров</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>JetBrainsMono-Regular.ttf</string>

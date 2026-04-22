@@ -46,15 +46,22 @@ struct CatalogView: View {
         NavigationStack {
             Group {
                 if vm.selectedCategory == nil {
-                    CategoryGridView(categories: vm.categories) { category in
-                        Task { await vm.selectCategory(category, cityId: cityStore.selectedCityId) }
-                    }
+                    CategoryGridView(
+                        categories: vm.categories,
+                        onSelect: { category in
+                            Task { await vm.selectCategory(category, cityId: cityStore.selectedCityId) }
+                        },
+                        onRefresh: { await vm.refreshCategories() }
+                    )
                 } else {
                     CatalogProductsView(
                         category: vm.selectedCategory!,
                         products: vm.products,
                         isLoading: vm.isLoading,
                         onLoadMore: { Task { await vm.loadMore(cityId: cityStore.selectedCityId) } },
+                        onRefresh: {
+                            await vm.selectCategory(vm.selectedCategory!, cityId: cityStore.selectedCityId)
+                        },
                         onBack: { vm.selectedCategory = nil }
                     )
                 }
@@ -88,6 +95,7 @@ private let categoryPalette: [Color] = [
 private struct CategoryGridView: View {
     let categories: [Category]
     let onSelect: (Category) -> Void
+    let onRefresh: () async -> Void
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -113,6 +121,7 @@ private struct CategoryGridView: View {
                 .padding(.vertical, 12)
             }
         }
+        .refreshable { await onRefresh() }
         .background(AnimatedGradientBackground())
     }
 }
@@ -182,6 +191,7 @@ private struct CatalogProductsView: View {
     let products: [Product]
     let isLoading: Bool
     let onLoadMore: () -> Void
+    let onRefresh: () async -> Void
     let onBack: () -> Void
 
     @EnvironmentObject var cartStore: CartStore
@@ -218,6 +228,7 @@ private struct CatalogProductsView: View {
             }
         }
         .padding(.bottom, 160)
+        .refreshable { await onRefresh() }
         .background(Color.appBackground)
         .navigationTitle(navTitle)
         .navigationBarTitleDisplayMode(.large)

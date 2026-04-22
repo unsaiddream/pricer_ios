@@ -8,9 +8,14 @@ final class SearchViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var page = 0
     @Published var hasMore = false
+    @Published var recentSearches: [String] = []
 
     private let api = APIClient.shared
     private var searchTask: Task<Void, Never>?
+    private let recentKey = "recent_searches_v1"
+    private let maxRecent = 8
+
+    init() { loadRecent() }
 
     func search(cityId: Int) async {
         guard query.count >= 2 else {
@@ -33,6 +38,11 @@ final class SearchViewModel: ObservableObject {
         await performSearch(cityId: cityId, page: page + 1, append: true)
     }
 
+    func clearRecent() {
+        recentSearches = []
+        UserDefaults.standard.removeObject(forKey: recentKey)
+    }
+
     private func performSearch(cityId: Int, page: Int, append: Bool) async {
         isLoading = true
 
@@ -52,10 +62,20 @@ final class SearchViewModel: ObservableObject {
             }
             self.page = response.page
             hasMore = response.page + 1 < response.nbPages
-        } catch {
-            // Ошибка поиска — не показываем алерт, просто оставляем прежние результаты
-        }
+            if !append && !query.isEmpty { saveToRecent(query) }
+        } catch {}
 
         isLoading = false
+    }
+
+    private func saveToRecent(_ q: String) {
+        var recent = recentSearches.filter { $0.lowercased() != q.lowercased() }
+        recent.insert(q, at: 0)
+        recentSearches = Array(recent.prefix(maxRecent))
+        UserDefaults.standard.set(recentSearches, forKey: recentKey)
+    }
+
+    private func loadRecent() {
+        recentSearches = UserDefaults.standard.stringArray(forKey: recentKey) ?? []
     }
 }

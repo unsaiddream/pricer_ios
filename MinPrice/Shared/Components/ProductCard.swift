@@ -93,7 +93,16 @@ struct ProductCard: View {
                         }
                     }
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .padding(.top, 6)
+                    .padding(.bottom, stores.count > 3 ? 2 : 6)
+
+                    if stores.count > 3 {
+                        Text("и ещё \(stores.count - 3) \(moreStoresText(stores.count - 3))")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.appPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.bottom, 5)
+                    }
                 }
             }
 
@@ -118,6 +127,14 @@ struct ProductCard: View {
         .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 3)
     }
 
+}
+
+private func moreStoresText(_ n: Int) -> String {
+    let m10 = n % 10, m100 = n % 100
+    if m100 >= 11 && m100 <= 19 { return "магазинов" }
+    if m10 == 1 { return "магазин" }
+    if m10 >= 2 && m10 <= 4 { return "магазина" }
+    return "магазинов"
 }
 
 // MARK: - Discount sticker

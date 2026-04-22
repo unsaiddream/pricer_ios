@@ -37,6 +37,10 @@ struct CartView: View {
                 }
             }
         }
+        .refreshable {
+            await cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
+            await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId)
+        }
         .task {
             await cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
             await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId)

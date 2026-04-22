@@ -14,105 +14,162 @@ struct ProductView: View {
     @State private var loadedProductImage: UIImage? = nil
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showRadialMenu = false
+    @State private var radialMenuAppeared = false
+    @State private var radialMenuCenter: CGPoint = .zero
+    @State private var pressTimer: Timer? = nil
+    @State private var hoveredAction: RadialAction? = nil
+
     var body: some View {
-        ScrollView {
-                if vm.isLoading {
-                    SkeletonProductDetail()
-                } else if let product = vm.product {
-                    VStack(alignment: .leading, spacing: 0) {
+        GeometryReader { geo in
+            ZStack {
+                ScrollView {
+                    if vm.isLoading {
+                        SkeletonProductDetail()
+                    } else if let product = vm.product {
+                        VStack(alignment: .leading, spacing: 0) {
 
-                        KFImage(product.coverURL)
-                            .placeholder { Rectangle().fill(Color.appBackground) }
-                            .onSuccess { result in loadedProductImage = result.image }
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 260)
-                            .background(Color.appBackground)
+                            KFImage(product.coverURL)
+                                .placeholder { Rectangle().fill(Color.appBackground) }
+                                .onSuccess { result in loadedProductImage = result.image }
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 260)
+                                .background(Color.appBackground)
 
-                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 16) {
 
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(product.title)
-                                    .font(.jb(18, weight: .bold))
-                                    .foregroundStyle(Color.appForeground)
-                                if let brand = product.brand {
-                                    Text(brand)
-                                        .font(.jb(14))
-                                        .foregroundStyle(Color.appMuted)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(product.title)
+                                        .font(.jb(18, weight: .bold))
+                                        .foregroundStyle(Color.appForeground)
+                                    if let brand = product.brand {
+                                        Text(brand)
+                                            .font(.jb(14))
+                                            .foregroundStyle(Color.appMuted)
+                                    }
+                                }
+
+                                if let range = product.priceRange {
+                                    PriceRangeBanner(range: range)
+                                }
+
+                                if let stores = product.priceRange?.stores, !stores.isEmpty {
+                                    StorePricesSection(stores: stores)
+                                }
+
+                                if let history = vm.priceHistory, !history.stores.isEmpty {
+                                    PriceHistoryChart(history: history)
+                                }
+
+                                if let desc = product.description, !desc.isEmpty {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Описание")
+                                            .font(.jb(15, weight: .semibold))
+                                            .foregroundStyle(Color.appForeground)
+                                        Text(desc)
+                                            .font(.jb(14))
+                                            .foregroundStyle(Color.appMuted)
+                                    }
                                 }
                             }
-
-                            if let range = product.priceRange {
-                                PriceRangeBanner(range: range)
+                            .padding(16)
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                .background(Color.appBackground)
+                .overlay(alignment: .top) {
+                    HStack {
+                        NavGlassButton(icon: "chevron.left") { dismiss() }
+                        Spacer()
+                        NavGlassButton(icon: "square.and.arrow.up") {
+                            if let product = vm.product {
+                                let image = makeProductShareImage(product: product, productImage: loadedProductImage) ?? UIImage()
+                                let url = URL(string: "https://minprice.kz/products/\(product.uuid)/")
+                                shareItem = ShareImageItem(image: image, url: url)
                             }
-
-                            if let stores = product.priceRange?.stores, !stores.isEmpty {
-                                StorePricesSection(stores: stores)
-                            }
-
-                            if let history = vm.priceHistory, !history.stores.isEmpty {
-                                PriceHistoryChart(history: history)
-                            }
-
-                            if let desc = product.description, !desc.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Описание")
-                                        .font(.jb(15, weight: .semibold))
-                                        .foregroundStyle(Color.appForeground)
-                                    Text(desc)
-                                        .font(.jb(14))
-                                        .foregroundStyle(Color.appMuted)
+                        }
+                        NavGlassButton(
+                            icon: favoritesStore.isFavorited(uuid) ? "star.fill" : "star",
+                            tint: favoritesStore.isFavorited(uuid) ? Color.appPrimary : Color.appForeground
+                        ) {
+                            if let product = vm.product {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                    favoritesStore.toggle(product)
                                 }
                             }
                         }
-                        .padding(16)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .opacity(showRadialMenu ? 0 : 1)
+                    .animation(.easeInOut(duration: 0.15), value: showRadialMenu)
                 }
-            }
-            .scrollIndicators(.hidden)
-            .background(Color.appBackground)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        .preference(key: HideBottomBarsKey.self, value: true)
-        .onTapGesture(count: 2) {
-            if let product = vm.product {
-                let image = makeProductShareImage(product: product, productImage: loadedProductImage) ?? UIImage()
-                let url = URL(string: "https://minprice.kz/products/\(product.uuid)/")
-                shareItem = ShareImageItem(image: image, url: url)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                        .onChanged { value in
+                            if showRadialMenu {
+                                updateHover(at: value.location, safeAreaTop: geo.safeAreaInsets.top)
+                            } else {
+                                guard pressTimer == nil else { return }
+                                let loc = value.location
+                                let timer = Timer(timeInterval: 0.45, repeats: false) { _ in
+                                    DispatchQueue.main.async {
+                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                        radialMenuCenter = loc
+                                        showRadialMenu = true
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                                            withAnimation(.spring(response: 0.5, dampingFraction: 0.68)) {
+                                                radialMenuAppeared = true
+                                            }
+                                        }
+                                        pressTimer = nil
+                                    }
+                                }
+                                RunLoop.main.add(timer, forMode: .common)
+                                pressTimer = timer
+                            }
+                        }
+                        .onEnded { _ in
+                            pressTimer?.invalidate()
+                            pressTimer = nil
+                            if showRadialMenu {
+                                executeHoveredAction()
+                                dismissRadialMenu()
+                                hoveredAction = nil
+                            }
+                        }
+                )
+
+                if showRadialMenu {
+                    RadialMenuOverlay(
+                        center: radialMenuCenter,
+                        appeared: radialMenuAppeared,
+                        safeAreaTop: geo.safeAreaInsets.top,
+                        screenWidth: geo.size.width,
+                        isFavorited: favoritesStore.isFavorited(uuid),
+                        hoveredAction: hoveredAction
+                    )
+                }
             }
         }
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+        .preference(key: HideBottomBarsKey.self, value: true)
         .safeAreaInset(edge: .bottom) {
-            ProductActionBar(
-                added: addedToCart,
-                favorited: favoritesStore.isFavorited(uuid),
-                onBack: { dismiss() },
-                onAddToCart: {
-                    guard !addedToCart else { return }
-                    Task {
-                        do {
-                            try await cartStore.quickAdd(productUuid: uuid)
-                            withAnimation { addedToCart = true }
-                            try? await Task.sleep(nanoseconds: 2_000_000_000)
-                            withAnimation { addedToCart = false }
-                        } catch {}
-                    }
-                },
-                onFavorite: {
-                    if let product = vm.product {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                            favoritesStore.toggle(product)
-                        }
-                    }
-                },
-                onShare: {
-                    if let product = vm.product {
-                        let image = makeProductShareImage(product: product, productImage: loadedProductImage) ?? UIImage()
-                        let url = URL(string: "https://minprice.kz/products/\(product.uuid)/")
-                        shareItem = ShareImageItem(image: image, url: url)
-                    }
+            ProductCartBar(added: addedToCart) {
+                guard !addedToCart else { return }
+                Task {
+                    do {
+                        try await cartStore.quickAdd(productUuid: uuid)
+                        withAnimation { addedToCart = true }
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        withAnimation { addedToCart = false }
+                    } catch {}
                 }
-            )
+            }
         }
         .sheet(item: $shareItem) { item in
             ProductSharePreviewSheet(item: item)
@@ -123,94 +180,193 @@ struct ProductView: View {
             await vm.load(uuid: uuid, cityId: cityStore.selectedCityId)
         }
     }
+
+    private func dismissRadialMenu() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) {
+            radialMenuAppeared = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            showRadialMenu = false
+        }
+    }
+
+    private func radialTarget(deg: Double) -> CGPoint {
+        let radius: CGFloat = 84
+        let rad = deg * .pi / 180
+        return CGPoint(x: radialMenuCenter.x + radius * CGFloat(cos(rad)),
+                       y: radialMenuCenter.y + radius * CGFloat(sin(rad)))
+    }
+
+    private func updateHover(at location: CGPoint, safeAreaTop: CGFloat) {
+        let threshold: CGFloat = 50
+        let items: [(RadialAction, Double)] = [(.back, 220), (.share, 270), (.favorite, 320)]
+        for (action, deg) in items {
+            let t = radialTarget(deg: deg)
+            if hypot(t.x - location.x, t.y - location.y) < threshold {
+                if hoveredAction != action {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    hoveredAction = action
+                }
+                return
+            }
+        }
+        hoveredAction = nil
+    }
+
+    private func executeHoveredAction() {
+        switch hoveredAction {
+        case .back:
+            dismiss()
+        case .share:
+            if let p = vm.product {
+                let img = makeProductShareImage(product: p, productImage: loadedProductImage) ?? UIImage()
+                shareItem = ShareImageItem(image: img, url: URL(string: "https://minprice.kz/products/\(p.uuid)/"))
+            }
+        case .favorite:
+            if let p = vm.product {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { favoritesStore.toggle(p) }
+            }
+        case nil:
+            break
+        }
+    }
 }
 
-// MARK: - Product Action Bar (bottom)
+// MARK: - Nav Glass Button
 
-private struct ProductActionBar: View {
+private struct NavGlassButton: View {
+    let icon: String
+    var tint: Color = Color.appForeground
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 38, height: 38)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay {
+                    Circle().fill(LinearGradient(
+                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.04)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ))
+                }
+                .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Radial Action
+
+private enum RadialAction: Equatable { case back, share, favorite }
+
+// MARK: - Radial Menu Overlay
+
+private struct RadialMenuOverlay: View {
+    let center: CGPoint
+    let appeared: Bool
+    let safeAreaTop: CGFloat
+    let screenWidth: CGFloat
+    let isFavorited: Bool
+    let hoveredAction: RadialAction?
+
+    private let radius: CGFloat = 84
+
+    private var backSource: CGPoint { CGPoint(x: 35, y: safeAreaTop + 27) }
+    private var shareSource: CGPoint { CGPoint(x: screenWidth - 81, y: safeAreaTop + 27) }
+    private var favSource: CGPoint { CGPoint(x: screenWidth - 35, y: safeAreaTop + 27) }
+
+    private func radialPos(deg: Double) -> CGPoint {
+        let rad = deg * .pi / 180
+        return CGPoint(x: center.x + radius * CGFloat(cos(rad)),
+                       y: center.y + radius * CGFloat(sin(rad)))
+    }
+
+    var body: some View {
+        ZStack {
+            flyButton("chevron.left", Color.appForeground,
+                      from: backSource, to: radialPos(deg: 220),
+                      delay: 0.00, hovered: hoveredAction == .back)
+            flyButton("square.and.arrow.up", Color.appForeground,
+                      from: shareSource, to: radialPos(deg: 270),
+                      delay: 0.04, hovered: hoveredAction == .share)
+            flyButton(isFavorited ? "star.fill" : "star",
+                      isFavorited ? Color.appPrimary : Color.appForeground,
+                      from: favSource, to: radialPos(deg: 320),
+                      delay: 0.08, hovered: hoveredAction == .favorite)
+        }
+    }
+
+    @ViewBuilder
+    private func flyButton(_ icon: String, _ tint: Color,
+                           from source: CGPoint, to target: CGPoint,
+                           delay: Double, hovered: Bool) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(hovered ? Color.white : tint)
+            .frame(width: 46, height: 46)
+            .background(
+                hovered ? AnyShapeStyle(Color.appPrimary) : AnyShapeStyle(Material.ultraThin),
+                in: Circle()
+            )
+            .overlay {
+                Circle().fill(LinearGradient(
+                    colors: [Color.white.opacity(hovered ? 0.3 : 0.18), Color.white.opacity(0.04)],
+                    startPoint: .top, endPoint: .bottom
+                ))
+            }
+            .overlay(Circle().stroke(Color.white.opacity(hovered ? 0.6 : 0.3), lineWidth: hovered ? 1 : 0.5))
+            .shadow(color: .black.opacity(hovered ? 0.35 : 0.28), radius: hovered ? 18 : 14, x: 0, y: 5)
+            .scaleEffect(appeared ? (hovered ? 1.18 : 1.0) : 0.55)
+            .position(appeared ? target : source)
+            .animation(.spring(response: 0.48, dampingFraction: 0.68).delay(appeared ? delay : 0), value: appeared)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: hovered)
+    }
+}
+
+// MARK: - Product Cart Bar (floating liquid glass)
+
+private struct ProductCartBar: View {
     let added: Bool
-    let favorited: Bool
-    let onBack: () -> Void
     let onAddToCart: () -> Void
-    let onFavorite: () -> Void
-    let onShare: () -> Void
-
-    @State private var isCollapsed = false
 
     var body: some View {
         HStack {
             Spacer()
-            VStack(spacing: 6) {
-                // Стрелка — всегда сверху
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
-                        isCollapsed.toggle()
-                    }
-                } label: {
-                    Image(systemName: isCollapsed ? "chevron.down" : "chevron.up")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Color.appForeground.opacity(0.6))
-                        .frame(width: 46, height: 20)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .overlay(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5))
+            Button(action: onAddToCart) {
+                HStack(spacing: 8) {
+                    Image(systemName: added ? "checkmark.circle.fill" : "cart.badge.plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(added ? Color.green : Color.appForeground)
+                    Text(added ? "Добавлено" : "В корзину")
+                        .font(.jb(15, weight: .semibold))
+                        .foregroundStyle(added ? Color.green : Color.appForeground)
                 }
-                .buttonStyle(.plain)
-
-                if !isCollapsed {
-                    // Назад
-                    Button(action: onBack) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.appForeground)
-                            .frame(width: 46, height: 46)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
-                    }
-                    .buttonStyle(.plain)
-
-                    // Избранное
-                    Button(action: onFavorite) {
-                        Image(systemName: favorited ? "star.fill" : "star")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(favorited ? Color.appPrimary : Color.appForeground)
-                            .frame(width: 46, height: 46)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .overlay(Circle().stroke(
-                                favorited ? Color.appPrimary.opacity(0.45) : Color.white.opacity(0.3),
-                                lineWidth: favorited ? 1 : 0.5
-                            ))
-                    }
-                    .buttonStyle(.plain)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.55), value: favorited)
-
-                    // В корзину
-                    Button(action: onAddToCart) {
-                        Image(systemName: added ? "checkmark.circle.fill" : "cart.badge.plus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(added ? Color.green : Color.appForeground)
-                            .frame(width: 46, height: 46)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
-                    }
-                    .buttonStyle(.plain)
-                    .animation(.easeInOut(duration: 0.2), value: added)
-
-                    // Поделиться
-                    Button(action: onShare) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(Color.appForeground)
-                            .frame(width: 46, height: 46)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
-                    }
-                    .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 15)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .fill(LinearGradient(
+                            colors: [Color.white.opacity(0.12), Color.white.opacity(0.02)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ))
                 }
+                .overlay(
+                    Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 4)
             }
-            .transition(.opacity)
+            .buttonStyle(.plain)
+            .animation(.easeInOut(duration: 0.2), value: added)
         }
-        .padding(.trailing, 16)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
         .padding(.top, 4)
     }
 }
