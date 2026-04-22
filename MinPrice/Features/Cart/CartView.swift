@@ -86,16 +86,25 @@ private struct CartSummaryView: View {
 
                 // Итоговая сумма
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Минимальная сумма")
-                            .font(.jb(12))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("МИНИМАЛЬНАЯ СУММА")
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(Color.appMuted)
+                            .kerning(0.8)
                         Text("\(Int(summary.cheapestTotalPrice)) ₸")
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundStyle(Color.appForeground)
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(Color.savingsGreen)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(RoundedRectangle(cornerRadius: 8).fill(Color.savingsGreen.opacity(0.08)))
+                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.savingsGreen.opacity(0.35), lineWidth: 1))
+                            }
                     }
                     Spacer()
-                    Text("\(summary.totalItems) товаров")
+                    Text("\(summary.totalItems) тов.")
                         .font(.jb(13))
                         .foregroundStyle(Color.appMuted)
                 }
@@ -111,7 +120,12 @@ private struct CartSummaryView: View {
 
                     VStack(spacing: 0) {
                         ForEach(Array(summary.cheapestPerProduct.enumerated()), id: \.element.product.uuid) { idx, item in
-                            CartItemRow(item: item, onRemove: { onRemove(item.product.uuid) })
+                            CartItemRow(item: item, onRemove: {
+                                onRemove(item.product.uuid)
+                            }, onQuantityChange: { newQty in
+                                guard let cart = cartStore.cart else { return }
+                                Task { await vm.updateQuantity(cart: cart, productUuid: item.product.uuid, quantity: newQty, cityId: cityStore.selectedCityId) }
+                            })
                             if idx < summary.cheapestPerProduct.count - 1 {
                                 Divider().overlay(Color.appBorder).padding(.leading, 80)
                             }
@@ -160,6 +174,7 @@ private struct CartSummaryView: View {
 private struct CartItemRow: View {
     let item: CartSummaryStoreItem
     let onRemove: () -> Void
+    let onQuantityChange: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -185,13 +200,38 @@ private struct CartItemRow: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: 6) {
                 Text("\(Int(item.itemTotal)) ₸")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Color.appForeground)
-                Text("×\(item.quantity)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.appMuted)
+
+                // Счётчик количества
+                HStack(spacing: 0) {
+                    Button {
+                        if item.quantity <= 1 { onRemove() } else { onQuantityChange(item.quantity - 1) }
+                    } label: {
+                        Image(systemName: item.quantity <= 1 ? "trash" : "minus")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(item.quantity <= 1 ? Color.discountRed : Color.appPrimary)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("\(item.quantity)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.appForeground)
+                        .frame(minWidth: 24)
+
+                    Button { onQuantityChange(item.quantity + 1) } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.appPrimary)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.appBorder, lineWidth: 1))
             }
         }
         .padding(.horizontal, 14)
@@ -214,6 +254,7 @@ private struct StoreComparisonSection: View {
     @State private var transferringSource: String? = nil
 
     private let transferableChains: Set<String> = ["arbuz", "airbafresh", "mgo"]
+    private var minPrice: Double { totals.map(\.totalPrice).min() ?? 0 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -223,13 +264,28 @@ private struct StoreComparisonSection: View {
 
             VStack(spacing: 0) {
                 ForEach(Array(totals.enumerated()), id: \.element.id) { idx, store in
+                    let isCheapest = store.totalPrice == minPrice && store.availableCount == store.totalCount
+
                     HStack(spacing: 12) {
                         StoreLogoView(url: nil, source: store.chainSource, size: 32)
+                            .overlay(
+                                Circle().stroke(isCheapest ? Color.savingsGreen.opacity(0.6) : Color.clear, lineWidth: 2)
+                            )
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(store.chainName)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(Color.appForeground)
+                            HStack(spacing: 6) {
+                                Text(store.chainName)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(Color.appForeground)
+                                if isCheapest {
+                                    Text("мин")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundStyle(Color.savingsGreen)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Color.savingsGreen.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                                }
+                            }
                             Text("\(store.availableCount) из \(store.totalCount) товаров")
                                 .font(.system(size: 11))
                                 .foregroundStyle(Color.appMuted)
@@ -239,7 +295,7 @@ private struct StoreComparisonSection: View {
 
                         Text("\(Int(store.totalPrice)) ₸")
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(Color.appForeground)
+                            .foregroundStyle(isCheapest ? Color.savingsGreen : Color.appForeground)
 
                         if transferableChains.contains(store.chainSource) {
                             Button {
@@ -260,7 +316,7 @@ private struct StoreComparisonSection: View {
                                 } else {
                                     Image(systemName: "arrow.up.right.circle.fill")
                                         .font(.system(size: 22))
-                                        .foregroundStyle(Color.appPrimary)
+                                        .foregroundStyle(isCheapest ? Color.savingsGreen : Color.appPrimary)
                                 }
                             }
                             .buttonStyle(.plain)
@@ -268,6 +324,14 @@ private struct StoreComparisonSection: View {
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
+                    .background {
+                        if isCheapest {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(.ultraThinMaterial)
+                                .overlay(RoundedRectangle(cornerRadius: 10).fill(Color.savingsGreen.opacity(0.06)))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.savingsGreen.opacity(0.3), lineWidth: 1))
+                        }
+                    }
 
                     if idx < totals.count - 1 {
                         Divider().overlay(Color.appBorder).padding(.leading, 58)

@@ -32,7 +32,25 @@ final class CartViewModel: ObservableObject {
             let encoder = JSONEncoder()
             encoder.keyEncodingStrategy = .convertToSnakeCase
             req.httpBody = try encoder.encode(body)
-            let (_, _) = try await URLSession.shared.data(for: req)
+            _ = try await URLSession.shared.data(for: req)
+            await load(cart: cart, cityId: cityId)
+        } catch {}
+    }
+
+    func updateQuantity(cart: Cart, productUuid: String, quantity: Int, cityId: Int) async {
+        guard quantity > 0 else {
+            await removeItem(cart: cart, productUuid: productUuid, cityId: cityId)
+            return
+        }
+        let body = UpdateQuantityBody(productUuid: productUuid, quantity: quantity)
+        do {
+            var req = api.request(path: Endpoint.cartUpdateQuantity(cart.uuid))
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            req.httpBody = try encoder.encode(body)
+            _ = try await URLSession.shared.data(for: req)
             await load(cart: cart, cityId: cityId)
         } catch {}
     }

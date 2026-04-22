@@ -1,11 +1,8 @@
 import SwiftUI
-import PhotosUI
 
 struct SearchView: View {
     @EnvironmentObject var cityStore: CityStore
     @StateObject private var vm = SearchViewModel()
-    @State private var showImagePicker = false
-    @State private var selectedPhoto: PhotosPickerItem?
 
     var body: some View {
         NavigationStack {
@@ -68,20 +65,6 @@ struct SearchView: View {
             .searchable(text: $vm.query, prompt: "Молоко, хлеб, сыр...")
             .onChange(of: vm.query) { _ in
                 Task { await vm.search(cityId: cityStore.selectedCityId) }
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Image(systemName: "camera.viewfinder")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(Color.appPrimary)
-                    }
-                }
-            }
-            .onChange(of: selectedPhoto) { item in
-                guard item != nil else { return }
-                vm.query = "поиск по фото"
-                selectedPhoto = nil
             }
         }
     }
