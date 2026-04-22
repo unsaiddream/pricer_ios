@@ -222,10 +222,13 @@ private struct PriceRangeBanner: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("от \(Int(range.min)) ₸")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Color.appForeground)
+                        .foregroundStyle(Color.savingsGreen)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.savingsGreen.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
                     Text("до \(Int(range.max)) ₸")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.appMuted)
@@ -262,6 +265,8 @@ private struct StorePricesSection: View {
 
             VStack(spacing: 0) {
                 ForEach(Array(stores.enumerated()), id: \.element.storeName) { idx, store in
+                    let isBest = store.price == minPrice
+
                     HStack(spacing: 10) {
                         StoreLogoView(url: store.logoURL, source: store.storeSource, size: 30)
 
@@ -269,13 +274,13 @@ private struct StorePricesSection: View {
                             .font(.system(size: 15))
                             .foregroundStyle(Color.appForeground)
 
-                        if store.price == minPrice {
-                            Text("min")
+                        if isBest {
+                            Text("мин")
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(Color.appPrimary)
+                                .foregroundStyle(Color.savingsGreen)
                                 .padding(.horizontal, 5)
                                 .padding(.vertical, 2)
-                                .background(Color.appPrimary.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                                .background(Color.savingsGreen.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
                         }
 
                         Spacer()
@@ -283,7 +288,7 @@ private struct StorePricesSection: View {
                         VStack(alignment: .trailing, spacing: 1) {
                             Text("\(Int(store.price)) ₸")
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Color.appForeground)
+                                .foregroundStyle(isBest ? Color.savingsGreen : Color.appForeground)
                             if let prev = store.previousPrice, prev > store.price {
                                 Text("\(Int(prev)) ₸")
                                     .font(.system(size: 12))
@@ -296,19 +301,25 @@ private struct StorePricesSection: View {
                             Link(destination: url) {
                                 Image(systemName: "arrow.up.right.circle")
                                     .font(.system(size: 18))
-                                    .foregroundStyle(Color.appPrimary)
+                                    .foregroundStyle(isBest ? Color.savingsGreen : Color.appPrimary)
                             }
                         }
                     }
                     .padding(.vertical, 10)
+                    .padding(.horizontal, 14)
+                    .background(isBest ? Color.savingsGreen.opacity(0.06) : Color.clear)
+                    .overlay(
+                        isBest ? RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.savingsGreen.opacity(0.4), lineWidth: 1) : nil
+                    )
                     .opacity(store.inStock ? 1 : 0.5)
 
                     if idx < stores.count - 1 {
                         Divider().overlay(Color.appBorder)
+                            .padding(.horizontal, 14)
                     }
                 }
             }
-            .padding(.horizontal, 14)
             .background(Color.appCard, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.appBorder, lineWidth: 1))
         }
