@@ -74,7 +74,6 @@ private struct SplashView: View {
 
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 Spacer()
