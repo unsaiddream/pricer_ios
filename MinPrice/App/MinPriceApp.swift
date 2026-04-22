@@ -5,6 +5,7 @@ struct MinPriceApp: App {
     @StateObject private var cityStore = CityStore()
     @StateObject private var cartStore = CartStore()
     @StateObject private var favoritesStore = FavoritesStore()
+    @AppStorage("isDarkMode") private var isDarkMode = false
 
     init() {
         applyGlobalFonts()
@@ -16,7 +17,7 @@ struct MinPriceApp: App {
                 .environmentObject(cityStore)
                 .environmentObject(cartStore)
                 .environmentObject(favoritesStore)
-                .preferredColorScheme(.light)
+                .preferredColorScheme(isDarkMode ? .dark : .light)
                 .task {
                     await APIClient.shared.initSession()
                     await cityStore.loadCities()

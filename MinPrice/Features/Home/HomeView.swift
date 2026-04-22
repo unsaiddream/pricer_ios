@@ -7,6 +7,7 @@ struct HomeView: View {
     @EnvironmentObject var cartStore: CartStore
     @StateObject private var vm = HomeViewModel()
     @State private var showCitySelector = false
+    @AppStorage("isDarkMode") private var isDarkMode = false
 
     var body: some View {
         NavigationStack {
@@ -84,6 +85,17 @@ struct HomeView: View {
             .navigationTitle("minprice.kz")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { isDarkMode.toggle() }
+                    } label: {
+                        Image(systemName: isDarkMode ? "sun.max.fill" : "moon.fill")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(isDarkMode ? Color.appPrimary : Color.appMuted)
+                            .frame(width: 32, height: 32)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                }
                 ToolbarItem(placement: .principal) {
                     Image("AppLogo")
                         .resizable()

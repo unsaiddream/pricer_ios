@@ -67,13 +67,13 @@ struct ProductCard: View {
                             .strikethrough()
                     }
                 }
+                .frame(height: 24, alignment: .bottom)
 
                 Text(product.title)
                     .font(.system(size: 13))
                     .foregroundStyle(Color.appForeground.opacity(0.85))
                     .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(minHeight: 36)
+                    .frame(height: 38, alignment: .top)
 
             }
             .padding(.horizontal, 10)
