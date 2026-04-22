@@ -13,6 +13,7 @@ struct ProductView: View {
     @State private var shareItem: ShareImageItem? = nil
     @State private var loadedProductImage: UIImage? = nil
     @State private var dragOffset: CGFloat = 0
+    @State private var isSwipeActive = false
     @Environment(\.dismiss) private var dismiss
 
     private var screenWidth: CGFloat { UIScreen.main.bounds.width }
@@ -108,6 +109,7 @@ struct ProductView: View {
                 }
             }
             .background(Color.appBackground)
+            .scrollDisabled(isSwipeActive)
             .offset(x: dragOffset)
             .rotationEffect(.degrees(Double(dragOffset) / 26.0), anchor: .bottom)
             .opacity({
@@ -167,26 +169,40 @@ struct ProductView: View {
             await vm.load(uuid: uuid, cityId: cityStore.selectedCityId)
         }
         .simultaneousGesture(
-            DragGesture(minimumDistance: 20)
+            DragGesture(minimumDistance: 10, coordinateSpace: .local)
                 .onChanged { value in
                     let dx = value.translation.width
                     let dy = value.translation.height
-                    guard abs(dx) > abs(dy) * 0.65 else { return }
+
+                    if !isSwipeActive {
+                        // Commit to horizontal only when clearly horizontal (2:1 ratio + min 15pt)
+                        guard abs(dx) > abs(dy) * 2.0 && abs(dx) > 15 else { return }
+                        isSwipeActive = true
+                    }
+
                     dragOffset = dx
                 }
                 .onEnded { value in
                     let dx = value.translation.width
-                    let dy = value.translation.height
-                    guard abs(dx) > abs(dy) * 0.65 else {
+                    let velX = value.velocity.width
+
+                    defer { isSwipeActive = false }
+
+                    guard isSwipeActive else {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { dragOffset = 0 }
                         return
                     }
-                    if dx > 80 {
+
+                    // Счёт с учётом скорости: быстрый флик — меньший порог
+                    let triggeredRight = dx > 60 || velX > 600
+                    let triggeredLeft  = dx < -50 || velX < -600
+
+                    if triggeredRight {
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.88)) {
                             dragOffset = screenWidth * 1.4
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.33) { dismiss() }
-                    } else if dx < -60 {
+                    } else if triggeredLeft {
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.5)) {
                             dragOffset = -screenWidth * 0.28
                         }
