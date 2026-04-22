@@ -285,28 +285,12 @@ private struct SavingsBanner: View {
         return fmt.string(from: Date()).uppercased()
     }
 
-    private let storeAssets: [(asset: String, source: String, color: Color)] = [
-        ("store_magnum",      "mgo",         Color(red: 0.90, green: 0.21, blue: 0.21)),
-        ("store_arbuz",       "arbuz",        Color(red: 0.26, green: 0.63, blue: 0.28)),
-        ("store_airba_fresh", "airbafresh",   Color.white),
-        ("store_small",       "small",        Color.white),
+    private let storeAssets: [(asset: String, color: Color)] = [
+        ("store_magnum",      Color(red: 0.90, green: 0.21, blue: 0.21)),
+        ("store_arbuz",       Color(red: 0.26, green: 0.63, blue: 0.28)),
+        ("store_airba_fresh", Color.white),
+        ("store_small",       Color.white),
     ]
-
-    // Источник магазина с максимальной экономией в корзине
-    private var bestSource: String? {
-        guard let items = cart?.items else { return nil }
-        var savingsPerSource: [String: Int] = [:]
-        for item in items {
-            guard let best = item.product.stores?
-                    .filter({ $0.inStock })
-                    .min(by: { $0.price < $1.price }),
-                  let prev = best.previousPrice, prev > best.price
-            else { continue }
-            let savings = Int((prev - best.price) * Double(item.quantity))
-            savingsPerSource[best.storeSource, default: 0] += savings
-        }
-        return savingsPerSource.max(by: { $0.value < $1.value })?.key
-    }
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -336,24 +320,24 @@ private struct SavingsBanner: View {
                     .foregroundStyle(.white.opacity(0.45))
                     .kerning(1.2)
 
-                // Цена с зелёным фоном
-                let priceText = totalSavings > 0 ? formattedNumber(totalSavings) : "0"
-                Text("\(priceText) ₸")
-                    .font(.system(size: 30, weight: .black))
-                    .foregroundStyle(totalSavings > 0 ? Color.savingsGreen : .white.opacity(0.4))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.savingsGreen.opacity(totalSavings > 0 ? 0.18 : 0.07), in: RoundedRectangle(cornerRadius: 8))
-
                 if totalSavings > 0 {
+                    Text("\(formattedNumber(totalSavings)) ₸")
+                        .font(.system(size: 30, weight: .black))
+                        .foregroundStyle(.white)
                     Text("на \(purchaseCount) \(purchaseWord(purchaseCount)) в корзине")
                         .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.55))
                 } else if purchaseCount > 0 {
+                    Text("0 ₸")
+                        .font(.system(size: 30, weight: .black))
+                        .foregroundStyle(.white)
                     Text("Все товары по честной цене")
                         .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.55))
                 } else {
+                    Text("0 ₸")
+                        .font(.system(size: 30, weight: .black))
+                        .foregroundStyle(.white.opacity(0.5))
                     Text("Добавляйте товары со скидкой")
                         .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.45))
@@ -361,19 +345,12 @@ private struct SavingsBanner: View {
 
                 HStack(spacing: 7) {
                     ForEach(storeAssets, id: \.asset) { item in
-                        let isBest = item.source == bestSource
                         Image(item.asset)
                             .resizable()
                             .scaledToFit()
                             .frame(width: 28, height: 28)
                             .background(item.color, in: Circle())
                             .clipShape(Circle())
-                            .overlay(
-                                Circle().stroke(
-                                    isBest ? Color.savingsGreen : Color.clear,
-                                    lineWidth: 2
-                                )
-                            )
                     }
                 }
                 .padding(.top, 2)
