@@ -186,7 +186,7 @@ private struct ProductActionBar: View {
 
             // Основные кнопки — прячутся при isCollapsed
             if !isCollapsed {
-                HStack(spacing: 10) {
+                HStack {
                     // Назад
                     Button(action: onBack) {
                         Image(systemName: "chevron.left")
@@ -198,28 +198,21 @@ private struct ProductActionBar: View {
                     }
                     .buttonStyle(.plain)
 
+                    Spacer()
+
                     // В корзину
                     Button(action: onAddToCart) {
-                        HStack(spacing: 6) {
-                            Image(systemName: added ? "checkmark.circle.fill" : "cart.badge.plus")
-                                .font(.system(size: 15, weight: .semibold))
-                            Text(added ? "Добавлено!" : "В корзину")
-                                .font(.jb(14, weight: .semibold))
-                        }
-                        .foregroundStyle(added ? .white : Color.appPrimary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 46)
-                        .background(
-                            added ? Color.green : Color.appPrimary.opacity(0.28),
-                            in: Capsule()
-                        )
-                        .overlay(Capsule().stroke(
-                            added ? Color.clear : Color.appPrimary,
-                            lineWidth: 1.5
-                        ))
+                        Image(systemName: added ? "checkmark.circle.fill" : "cart.badge.plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(added ? Color.green : Color.appForeground)
+                            .frame(width: 46, height: 46)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
                     }
                     .buttonStyle(.plain)
                     .animation(.easeInOut(duration: 0.2), value: added)
+
+                    Spacer()
 
                     // Поделиться
                     Button(action: onShare) {
@@ -227,11 +220,8 @@ private struct ProductActionBar: View {
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(Color.appForeground)
                             .frame(width: 46, height: 46)
-                            .background {
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
-                            }
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 0.5))
                     }
                     .buttonStyle(.plain)
                 }
