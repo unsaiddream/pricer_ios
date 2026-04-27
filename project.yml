@@ -24,6 +24,7 @@ targets:
       - MinPrice
     resources:
       - MinPrice/Resources/Fonts
+      - MinPrice/Resources/PrivacyInfo.xcprivacy
     settings:
       base:
         INFOPLIST_FILE: MinPrice/Resources/Info.plist
@@ -45,6 +46,9 @@ targets:
       - path: MinPriceWidgets
         excludes:
           - Info.plist
+          - PrivacyInfo.xcprivacy
+    resources:
+      - MinPriceWidgets/PrivacyInfo.xcprivacy
     settings:
       base:
         INFOPLIST_FILE: MinPriceWidgets/Info.plist

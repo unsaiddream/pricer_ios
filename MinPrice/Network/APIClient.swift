@@ -43,7 +43,7 @@ final class APIClient {
             let response = try await fetch(SessionResponse.self, path: "/session/init/")
             UserDefaults.standard.set(response.guestUuid, forKey: guestUUIDKey)
         } catch {
-            print("⚠️ Session init failed: \(error)")
+            Log.debug("⚠️ Session init failed: \(error)")
         }
     }
 
@@ -77,7 +77,7 @@ final class APIClient {
 
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            print("❌ HTTP \(code) for \(path)")
+            Log.debug("❌ HTTP \(code) for \(path)")
             throw APIError.httpError(statusCode: code)
         }
 
@@ -95,7 +95,7 @@ final class APIClient {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             let raw = String(data: data.prefix(500), encoding: .utf8) ?? "?"
-            print("❌ HTTP \(code) for POST \(path): \(raw)")
+            Log.debug("❌ HTTP \(code) for POST \(path): \(raw)")
             throw APIError.httpError(statusCode: code)
         }
     }
@@ -112,7 +112,7 @@ final class APIClient {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             let raw = String(data: data.prefix(500), encoding: .utf8) ?? "?"
-            print("❌ HTTP \(code) for POST \(path): \(raw)")
+            Log.debug("❌ HTTP \(code) for POST \(path): \(raw)")
             throw APIError.httpError(statusCode: code)
         }
 
@@ -126,8 +126,8 @@ final class APIClient {
             return try decoder.decode(T.self, from: data)
         } catch {
             let raw = String(data: data.prefix(3000), encoding: .utf8) ?? "?"
-            print("❌ Decode \(T.self): \(error)")
-            print("📄 JSON: \(raw)")
+            Log.debug("❌ Decode \(T.self): \(error)")
+            Log.debug("📄 JSON: \(raw)")
             throw error
         }
     }

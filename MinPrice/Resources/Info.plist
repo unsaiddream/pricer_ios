@@ -63,9 +63,11 @@
 		<string>processing</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Для сканирования штрихкодов товаров</string>
+	<string>Камера нужна для сканирования штрихкодов — чтобы быстро найти товар и сравнить цены в магазинах</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Для сохранения графика сравнения цен в галерею</string>
+	<string>Сохраняем график сравнения цен в галерею, чтобы вы могли поделиться им</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>JetBrainsMono-Regular.ttf</string>

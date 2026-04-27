@@ -8,8 +8,8 @@ enum Endpoint {
 
     // MARK: - Home
     static func bestDeals() -> String { "/best-deals/" }
-    static func priceDrops() -> String { "/price-drops/" }
-    static func priceIncreases() -> String { "/price-increases/" }
+    // /price-drops/ и /price-increases/ убраны на бэке (см. main pricer репо).
+    // Используем /discounts/ для секции "Снижение цен" на главной.
     /// Готовый агрегат для главного графика-корзины. Бэк считает SQL+Python,
     /// клиент только рендерит. См. docs/STORE_BASKET_CONTRACT.md.
     static func storeBasket() -> String { "/home/basket/" }

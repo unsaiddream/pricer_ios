@@ -36,8 +36,15 @@ final class HomeViewModel: ObservableObject {
             catch { return .failure(error) }
         }()
 
-        async let dropsResult: Result<PriceDropsResponse, Error> = {
-            do { return .success(try await api.fetch(PriceDropsResponse.self, path: Endpoint.priceDrops(), queryItems: [cityParam])) }
+        // Снижения цен берём из /discounts/ (раньше был /price-drops/, удалён на бэке).
+        // DiscountsResponse такой же по форме (results[]).
+        async let dropsResult: Result<DiscountsResponse, Error> = {
+            let dropItems: [URLQueryItem] = [
+                cityParam,
+                URLQueryItem(name: "page", value: "1"),
+                URLQueryItem(name: "page_size", value: "20"),
+            ]
+            do { return .success(try await api.fetch(DiscountsResponse.self, path: Endpoint.discounts(), queryItems: dropItems)) }
             catch { return .failure(error) }
         }()
 
