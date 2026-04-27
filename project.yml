@@ -13,6 +13,8 @@ settings:
     PRODUCT_BUNDLE_IDENTIFIER: kz.minprice.app
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: 1
+    DEVELOPMENT_TEAM: 9LZD54M75S
+    CODE_SIGN_STYLE: Automatic
 
 targets:
   MinPrice:
@@ -27,11 +29,31 @@ targets:
         INFOPLIST_FILE: MinPrice/Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_ENTITLEMENTS: MinPrice/MinPrice.entitlements
     dependencies:
       - package: Kingfisher
+      - target: MinPriceWidgetsExtension
     scheme:
       testTargets:
         - MinPriceTests
+
+  MinPriceWidgetsExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: MinPriceWidgets
+        excludes:
+          - Info.plist
+    settings:
+      base:
+        INFOPLIST_FILE: MinPriceWidgets/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: kz.minprice.app.MinPriceWidgets
+        CODE_SIGN_ENTITLEMENTS: MinPriceWidgetsExtension.entitlements
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        SKIP_INSTALL: YES
 
   MinPriceTests:
     type: bundle.unit-test

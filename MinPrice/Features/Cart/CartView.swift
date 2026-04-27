@@ -5,6 +5,7 @@ struct CartView: View {
     @EnvironmentObject var cityStore: CityStore
     @EnvironmentObject var cartStore: CartStore
     @StateObject private var vm = CartViewModel()
+    @State private var showClearConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -14,27 +15,32 @@ struct CartView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .padding(.top, 16)
                 } else if let summary = vm.summary, !summary.cheapestPerProduct.isEmpty {
-                    CartSummaryView(summary: summary, vm: vm) { productUuid in
-                        guard let cart = cartStore.cart else { return }
-                        Task { await vm.removeItem(cart: cart, productUuid: productUuid, cityId: cityStore.selectedCityId) }
-                    }
+                    CartSummaryView(
+                        summary: summary,
+                        vm: vm,
+                        cartUUID: cartStore.cart?.uuid,
+                        onRemove: { productUuid in
+                            guard let cart = cartStore.cart else { return }
+                            Task { await vm.removeItem(cart: cart, productUuid: productUuid, cityId: cityStore.selectedCityId) }
+                        },
+                        onClear: { showClearConfirm = true }
+                    )
                 } else {
                     EmptyCartView()
                 }
             }
-            .navigationTitle("Корзина")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("")
+            .toolbarBackground(.hidden, for: .navigationBar)
             .background(Color.appBackground)
-            .toolbar {
-                if let cart = cartStore.cart, vm.summary != nil {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        ShareLink(item: URL(string: "https://minprice.kz/cart/\(cart.uuid)")!) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 16))
-                                .foregroundStyle(Color.appPrimary)
-                        }
-                    }
+            .confirmationDialog("Очистить корзину?", isPresented: $showClearConfirm, titleVisibility: .visible) {
+                Button("Очистить", role: .destructive) {
+                    guard let cart = cartStore.cart else { return }
+                    Task { await vm.clearCart(cart: cart, cityId: cityStore.selectedCityId) }
                 }
+                Button("Отмена", role: .cancel) {}
+            } message: {
+                Text("Все товары будут удалены из корзины")
             }
         }
         .refreshable {
@@ -46,10 +52,15 @@ struct CartView: View {
             await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId)
         }
         .onChange(of: cartStore.cart?.uuid) { _ in
+            // Fires when cart UUID changes (new cart created)
             Task { await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId) }
         }
-        .onChange(of: cartStore.itemsCount) { _ in
+        .onChange(of: cartStore.refreshCount) { _ in
+            // Fires after quickAdd — reload summary to show new item
             Task { await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId) }
+        }
+        .onChange(of: vm.summary?.cheapestPerProduct.count) { count in
+            cartStore.itemsCount = count ?? 0
         }
     }
 }
@@ -58,17 +69,24 @@ struct CartView: View {
 
 private struct EmptyCartView: View {
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "cart")
-                .font(.system(size: 52))
-                .foregroundStyle(Color.appMuted.opacity(0.5))
-            Text("Корзина пуста")
-                .font(.jb(18, weight: .bold))
-                .foregroundStyle(Color.appForeground)
-            Text("Добавляйте товары из поиска или каталога")
-                .font(.jb(14))
-                .foregroundStyle(Color.appMuted)
-                .multilineTextAlignment(.center)
+        VStack(spacing: 20) {
+            ZStack {
+                Circle()
+                    .fill(Color.appPrimary.opacity(0.08))
+                    .frame(width: 100, height: 100)
+                Image(systemName: "cart")
+                    .font(.system(size: 44))
+                    .foregroundStyle(Color.appPrimary.opacity(0.5))
+            }
+            VStack(spacing: 8) {
+                Text("Корзина пуста")
+                    .font(.jb(20, weight: .bold))
+                    .foregroundStyle(Color.appForeground)
+                Text("Добавляйте товары из поиска или каталога")
+                    .font(.jb(14))
+                    .foregroundStyle(Color.appMuted)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
@@ -80,40 +98,94 @@ private struct EmptyCartView: View {
 private struct CartSummaryView: View {
     let summary: CartSummaryResponse
     let vm: CartViewModel
+    let cartUUID: String?
     let onRemove: (String) -> Void
+    let onClear: () -> Void
 
     @EnvironmentObject var cityStore: CityStore
     @EnvironmentObject var cartStore: CartStore
+
+    // Локальное состояние кол-ва — обновляется мгновенно, сеть идёт с дебаунсом
+    @State private var localQtys: [String: Int] = [:]
+    @State private var debounceWorks: [String: DispatchWorkItem] = [:]
+
+    private func qty(for item: CartSummaryStoreItem) -> Int {
+        localQtys[item.product.uuid] ?? item.quantity
+    }
+
+    private var localTotal: Double {
+        summary.cheapestPerProduct.reduce(0) { acc, item in
+            acc + item.price * Double(qty(for: item))
+        }
+    }
+
+    private var totalItems: Int {
+        summary.cheapestPerProduct.reduce(0) { acc, item in acc + qty(for: item) }
+    }
+
+    private func scheduleUpdate(uuid: String, newQty: Int) {
+        debounceWorks[uuid]?.cancel()
+        guard let cart = cartStore.cart else { return }
+        let work = DispatchWorkItem {
+            Task { await vm.updateQuantity(cart: cart, productUuid: uuid, quantity: newQty, cityId: cityStore.selectedCityId) }
+        }
+        debounceWorks[uuid] = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
 
-                // Итоговая сумма
+                // Кастомный заголовок страницы
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("МИНИМАЛЬНАЯ СУММА")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Color.appMuted)
-                            .kerning(0.8)
-                        Text("\(Int(summary.cheapestTotalPrice)) ₸")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(Color.savingsGreen)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(.ultraThinMaterial)
-                                    .overlay(RoundedRectangle(cornerRadius: 8).fill(Color.savingsGreen.opacity(0.08)))
-                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.savingsGreen.opacity(0.35), lineWidth: 1))
-                            }
-                    }
+                    BrandTitle(text: "Корзина")
                     Spacer()
-                    Text("\(summary.totalItems) тов.")
-                        .font(.jb(13))
-                        .foregroundStyle(Color.appMuted)
+                    HStack(spacing: 12) {
+                        Button(action: onClear) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 15))
+                                .foregroundStyle(Color.discountRed)
+                                .frame(width: 36, height: 36)
+                                .background(Color.appCard, in: Circle())
+                                .neumorphicButton()
+                        }
+                        if let uuid = cartUUID {
+                            ShareLink(item: URL(string: "https://minprice.kz/cart/\(uuid)")!) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(Color.appPrimary)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.appCard, in: Circle())
+                                    .neumorphicButton()
+                            }
+                        }
+                    }
                 }
-                .padding(16)
+
+                // Шапка — итого (обновляется мгновенно)
+                VStack(spacing: 0) {
+                    HStack(alignment: .bottom) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("ИТОГО ПО МИНИМУМУ")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Color.appMuted)
+                                .kerning(0.8)
+                            Text("\(formattedPrice(localTotal)) ₸")
+                                .font(.system(size: 30, weight: .black))
+                                .foregroundStyle(Color.savingsGreen)
+                                .contentTransition(.numericText())
+                                .animation(.easeInOut(duration: 0.15), value: localTotal)
+                        }
+                        Spacer()
+                        Text("\(totalItems) \(itemsWord(totalItems))")
+                            .font(.jb(13))
+                            .foregroundStyle(Color.appMuted)
+                            .contentTransition(.numericText())
+                            .animation(.easeInOut(duration: 0.15), value: totalItems)
+                    }
+                    .padding(16)
+                }
                 .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBorder, lineWidth: 1))
 
@@ -125,19 +197,37 @@ private struct CartSummaryView: View {
 
                     VStack(spacing: 0) {
                         ForEach(Array(summary.cheapestPerProduct.enumerated()), id: \.element.product.uuid) { idx, item in
-                            CartItemRow(item: item, onRemove: {
-                                onRemove(item.product.uuid)
-                            }, onQuantityChange: { newQty in
-                                guard let cart = cartStore.cart else { return }
-                                Task { await vm.updateQuantity(cart: cart, productUuid: item.product.uuid, quantity: newQty, cityId: cityStore.selectedCityId) }
-                            })
+                            CartItemRow(
+                                item: item,
+                                qty: qty(for: item),
+                                onRemove: { onRemove(item.product.uuid) },
+                                onQuantityChange: { newQty in
+                                    withAnimation(.easeInOut(duration: 0.1)) {
+                                        localQtys[item.product.uuid] = newQty
+                                    }
+                                    scheduleUpdate(uuid: item.product.uuid, newQty: newQty)
+                                }
+                            )
                             if idx < summary.cheapestPerProduct.count - 1 {
-                                Divider().overlay(Color.appBorder).padding(.leading, 80)
+                                Divider().overlay(Color.appBorder).padding(.leading, 82)
                             }
                         }
                     }
                     .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBorder, lineWidth: 1))
+                }
+                .onAppear {
+                    for item in summary.cheapestPerProduct {
+                        localQtys[item.product.uuid] = item.quantity
+                    }
+                }
+                .onChange(of: summary.cart.updatedAt) { _ in
+                    for item in summary.cheapestPerProduct {
+                        let uuid = item.product.uuid
+                        if debounceWorks[uuid] == nil {
+                            localQtys[uuid] = item.quantity
+                        }
+                    }
                 }
 
                 // Сравнение по магазинам
@@ -147,30 +237,109 @@ private struct CartSummaryView: View {
 
                 // Недоступные товары
                 if !summary.unavailableProducts.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Нет в наличии")
-                            .font(.jb(15, weight: .semibold))
-                            .foregroundStyle(Color.appMuted)
-                        ForEach(summary.unavailableProducts, id: \.product.uuid) { item in
-                            HStack(spacing: 12) {
-                                KFImage(item.product.coverURL)
-                                    .resizable().scaledToFit()
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.appBackground)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                                Text(item.product.title)
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Color.appMuted)
-                                    .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.appMuted)
+                            Text("Нет в наличии")
+                                .font(.jb(15, weight: .semibold))
+                                .foregroundStyle(Color.appMuted)
+                            Spacer()
+                            Button {
+                                guard let cart = cartStore.cart else { return }
+                                let uuids = summary.unavailableProducts.map { $0.product.uuid }
+                                Task {
+                                    await vm.removeItems(cart: cart, productUuids: uuids, cityId: cityStore.selectedCityId)
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 11, weight: .semibold))
+                                    Text("Убрать всё")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .foregroundStyle(Color.discountRed)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.discountRed.opacity(0.10), in: Capsule())
                             }
-                            .opacity(0.5)
+                            .buttonStyle(.plain)
                         }
+
+                        VStack(spacing: 0) {
+                            ForEach(Array(summary.unavailableProducts.enumerated()), id: \.element.product.uuid) { idx, item in
+                                HStack(spacing: 12) {
+                                    KFImage(item.product.coverURL)
+                                        .downsampled(to: CGSize(width: 44, height: 44))
+                                        .cancelOnDisappear(true)
+                                        .resizable().scaledToFit()
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.appBackground)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        .opacity(0.6)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.product.title)
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(Color.appMuted)
+                                            .lineLimit(2)
+                                        Text(item.reason)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(Color.discountRed.opacity(0.8))
+                                    }
+                                    Spacer()
+                                    Button {
+                                        onRemove(item.product.uuid)
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(Color.discountRed)
+                                            .frame(width: 36, height: 36)
+                                            .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 10))
+                                            .neumorphicButton()
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        onRemove(item.product.uuid)
+                                    } label: {
+                                        Label("Удалить", systemImage: "trash")
+                                    }
+                                }
+
+                                if idx < summary.unavailableProducts.count - 1 {
+                                    Divider().overlay(Color.appBorder).padding(.leading, 70)
+                                }
+                            }
+                        }
+                        .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBorder, lineWidth: 1))
                     }
                 }
             }
-            .padding(16)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
+    }
+
+    private func formattedPrice(_ val: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.groupingSeparator = " "
+        f.maximumFractionDigits = 0
+        return f.string(from: NSNumber(value: val)) ?? "\(Int(val))"
+    }
+
+    private func itemsWord(_ n: Int) -> String {
+        let m10 = n % 10, m100 = n % 100
+        if m100 >= 11 && m100 <= 19 { return "товаров" }
+        if m10 == 1 { return "товар" }
+        if m10 >= 2 && m10 <= 4 { return "товара" }
+        return "товаров"
     }
 }
 
@@ -178,6 +347,7 @@ private struct CartSummaryView: View {
 
 private struct CartItemRow: View {
     let item: CartSummaryStoreItem
+    let qty: Int
     let onRemove: () -> Void
     let onQuantityChange: (Int) -> Void
 
@@ -185,62 +355,73 @@ private struct CartItemRow: View {
         HStack(spacing: 12) {
             KFImage(item.product.coverURL)
                 .placeholder { Rectangle().fill(Color.appBackground) }
+                .downsampled(to: CGSize(width: 56, height: 56))
+                .cancelOnDisappear(true)
                 .resizable().scaledToFit()
                 .frame(width: 56, height: 56)
                 .background(Color.appBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.product.title)
                     .font(.system(size: 13))
                     .foregroundStyle(Color.appForeground)
                     .lineLimit(2)
                 HStack(spacing: 4) {
-                    StoreLogoView(url: nil, source: item.chainSource, size: 14)
+                    StoreLogoView(url: chainLogoURL(item.chainLogo), slug: item.chainSlug, source: item.chainSource, size: 14)
                     Text(item.chainName ?? "")
                         .font(.system(size: 11))
                         .foregroundStyle(Color.appMuted)
                 }
+                Text("\(Int(item.price)) ₸ / шт")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.appMuted.opacity(0.7))
             }
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 6) {
-                Text("\(Int(item.itemTotal)) ₸")
-                    .font(.system(size: 14, weight: .bold))
+            VStack(alignment: .trailing, spacing: 8) {
+                Text("\(Int(item.price * Double(qty))) ₸")
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Color.appForeground)
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.12), value: qty)
 
-                // Счётчик количества
-                HStack(spacing: 0) {
+                HStack(spacing: 4) {
                     Button {
-                        if item.quantity <= 1 { onRemove() } else { onQuantityChange(item.quantity - 1) }
+                        if qty <= 1 { onRemove() }
+                        else { onQuantityChange(qty - 1) }
                     } label: {
-                        Image(systemName: item.quantity <= 1 ? "trash" : "minus")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(item.quantity <= 1 ? Color.discountRed : Color.appPrimary)
-                            .frame(width: 28, height: 28)
+                        Image(systemName: qty <= 1 ? "trash" : "minus")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(qty <= 1 ? Color.discountRed : Color.appPrimary)
+                            .frame(width: 40, height: 40)
+                            .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 10))
+                            .neumorphicButton()
                     }
                     .buttonStyle(.plain)
 
-                    Text("\(item.quantity)")
-                        .font(.system(size: 13, weight: .semibold))
+                    Text("\(qty)")
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color.appForeground)
-                        .frame(minWidth: 24)
+                        .frame(minWidth: 28)
+                        .contentTransition(.numericText())
+                        .animation(.easeInOut(duration: 0.12), value: qty)
 
-                    Button { onQuantityChange(item.quantity + 1) } label: {
+                    Button { onQuantityChange(qty + 1) } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Color.appPrimary)
-                            .frame(width: 28, height: 28)
+                            .frame(width: 40, height: 40)
+                            .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 10))
+                            .neumorphicButton()
                     }
                     .buttonStyle(.plain)
                 }
-                .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.appBorder, lineWidth: 1))
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive, action: onRemove) {
                 Label("Удалить", systemImage: "trash")
@@ -258,7 +439,12 @@ private struct StoreComparisonSection: View {
     @EnvironmentObject var cityStore: CityStore
     @State private var transferringSource: String? = nil
 
-    private let transferableChains: Set<String> = ["arbuz", "airbafresh", "mgo"]
+    // chainSource — старая фильтрация (mgo/arbuz/airbafresh имеют свой source).
+    // Для Wolt-сетей (Small/Galmart/Toimart) кнопка-deeplink тоже должна быть.
+    private let transferableSources: Set<String> = ["arbuz", "airbafresh", "mgo", "wolt"]
+    private func canTransfer(_ store: SingleStoreTotal) -> Bool {
+        transferableSources.contains(store.chainSource)
+    }
     private var minPrice: Double { totals.map(\.totalPrice).min() ?? 0 }
 
     var body: some View {
@@ -272,18 +458,19 @@ private struct StoreComparisonSection: View {
                     let isCheapest = store.totalPrice == minPrice && store.availableCount == store.totalCount
 
                     HStack(spacing: 12) {
-                        StoreLogoView(url: nil, source: store.chainSource, size: 32)
+                        StoreLogoView(url: chainLogoURL(store.chainLogo), slug: store.chainSlug, source: store.chainSource, size: 32)
                             .overlay(
-                                Circle().stroke(isCheapest ? Color.savingsGreen.opacity(0.6) : Color.clear, lineWidth: 2)
+                                RoundedRectangle(cornerRadius: 7)
+                                    .stroke(isCheapest ? Color.savingsGreen.opacity(0.7) : Color.clear, lineWidth: 2)
                             )
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 6) {
                                 Text(store.chainName)
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(Color.appForeground)
                                 if isCheapest {
-                                    Text("мин")
+                                    Text("min")
                                         .font(.system(size: 9, weight: .semibold))
                                         .foregroundStyle(Color.savingsGreen)
                                         .padding(.horizontal, 5)
@@ -298,16 +485,26 @@ private struct StoreComparisonSection: View {
 
                         Spacer()
 
-                        Text("\(Int(store.totalPrice)) ₸")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(isCheapest ? Color.savingsGreen : Color.appForeground)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(Int(store.totalPrice)) ₸")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(isCheapest ? Color.savingsGreen : Color.appForeground)
+                            if store.availableCount < store.totalCount {
+                                Text("не все товары")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Color.appMuted)
+                            }
+                        }
 
-                        if transferableChains.contains(store.chainSource) {
+                        if canTransfer(store) {
                             Button {
                                 Task {
-                                    transferringSource = store.chainSource
+                                    // Для Wolt-сетей различаем по slug — иначе deeplink уйдёт не туда
+                                    let key = store.chainSlug ?? store.chainSource
+                                    transferringSource = key
                                     if let url = await vm.transferToStore(
                                         chainSource: store.chainSource,
+                                        chainSlug: store.chainSlug,
                                         items: store.products,
                                         cityId: cityStore.selectedCityId
                                     ) {
@@ -316,11 +513,12 @@ private struct StoreComparisonSection: View {
                                     transferringSource = nil
                                 }
                             } label: {
-                                if transferringSource == store.chainSource {
-                                    ProgressView().tint(Color.appPrimary).frame(width: 32)
+                                let key = store.chainSlug ?? store.chainSource
+                                if transferringSource == key {
+                                    ProgressView().tint(Color.appPrimary).frame(width: 32, height: 32)
                                 } else {
                                     Image(systemName: "arrow.up.right.circle.fill")
-                                        .font(.system(size: 22))
+                                        .font(.system(size: 24))
                                         .foregroundStyle(isCheapest ? Color.savingsGreen : Color.appPrimary)
                                 }
                             }
@@ -332,8 +530,7 @@ private struct StoreComparisonSection: View {
                     .background {
                         if isCheapest {
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(.ultraThinMaterial)
-                                .overlay(RoundedRectangle(cornerRadius: 10).fill(Color.savingsGreen.opacity(0.06)))
+                                .fill(Color.savingsGreen.opacity(0.10))
                                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.savingsGreen.opacity(0.3), lineWidth: 1))
                         }
                     }
@@ -347,4 +544,13 @@ private struct StoreComparisonSection: View {
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBorder, lineWidth: 1))
         }
     }
+}
+
+
+// Резолвит chain_logo путь от бэка (относительный или абсолютный) в URL
+private func chainLogoURL(_ raw: String?) -> URL? {
+    guard let raw, !raw.isEmpty else { return nil }
+    if raw.hasPrefix("http") { return URL(string: raw) }
+    if raw.hasPrefix("/")    { return URL(string: "https://backend.minprice.kz\(raw)") }
+    return URL(string: "https://backend.minprice.kz/media/\(raw)")
 }

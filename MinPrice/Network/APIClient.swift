@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 final class APIClient {
     static let shared = APIClient()
@@ -7,11 +8,25 @@ final class APIClient {
     private let session: URLSession
     private let guestUUIDKey = "guest_uuid"
 
+    // Заголовки версии — отсылаются с каждым запросом, чтобы бэкенд мог
+    // адаптировать ответ под клиента (например, не отдавать новые типы товаров
+    // старым версиям, или включать experimental поля только для последней).
+    private let appVersion: String
+    private let buildNumber: String
+    private let osVersion: String
+    private let deviceModel: String
+
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 30
         session = URLSession(configuration: config)
+
+        let bundle = Bundle.main
+        appVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
+        buildNumber = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        osVersion = UIDevice.current.systemVersion
+        deviceModel = UIDevice.current.model
     }
 
     // MARK: - Guest UUID
@@ -44,13 +59,20 @@ final class APIClient {
             req.setValue(uuid, forHTTPHeaderField: "X-Guest-UUID")
         }
         req.setValue("application/json", forHTTPHeaderField: "Accept")
+        // Версия и платформа — бэк может условно включать поля и адаптировать ответ
+        req.setValue(appVersion, forHTTPHeaderField: "X-App-Version")
+        req.setValue(buildNumber, forHTTPHeaderField: "X-App-Build")
+        req.setValue("ios", forHTTPHeaderField: "X-Platform")
+        req.setValue(osVersion, forHTTPHeaderField: "X-OS-Version")
+        req.setValue(deviceModel, forHTTPHeaderField: "X-Device-Model")
         return req
     }
 
     // MARK: - Fetch
 
-    func fetch<T: Decodable>(_ type: T.Type, path: String, queryItems: [URLQueryItem] = []) async throws -> T {
-        let req = request(path: path, queryItems: queryItems)
+    func fetch<T: Decodable>(_ type: T.Type, path: String, queryItems: [URLQueryItem] = [], timeout: TimeInterval? = nil) async throws -> T {
+        var req = request(path: path, queryItems: queryItems)
+        if let timeout { req.timeoutInterval = timeout }
         let (data, response) = try await session.data(for: req)
 
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {

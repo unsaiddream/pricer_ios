@@ -7,6 +7,7 @@ struct StorePrice: Codable, Identifiable {
     let storeSource: String
     let chainId: Int
     let chainName: String
+    let chainSlug: String?  // уникальный идентификатор сети (galmart/toimart/small под одним wolt)
     let chainLogo: String?
     let price: Double
     let previousPrice: Double?
@@ -94,6 +95,7 @@ struct PriceRangeStore: Codable {
     let storeSource: String
     let chainId: Int
     let chainName: String
+    let chainSlug: String?
     let chainLogo: String?
     let price: Double
     let previousPrice: Double?

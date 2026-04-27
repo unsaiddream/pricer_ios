@@ -27,19 +27,43 @@ struct ProductRow: View {
             ZStack(alignment: .topLeading) {
                 KFImage(product.coverURL)
                     .placeholder { RoundedRectangle(cornerRadius: 10).fill(Color.appBackground) }
+                    .downsampled(to: CGSize(width: 72, height: 72))
+                    .fade(duration: 0.18)
+                    .cancelOnDisappear(true)
                     .resizable()
                     .scaledToFill()
                     .frame(width: 72, height: 72)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
 
                 if let pct = discountPercent {
-                    Text("−\(pct)%")
-                        .font(.system(size: 9, weight: .black))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.discountRed, in: RoundedRectangle(cornerRadius: 4))
-                        .offset(x: -2, y: -2)
+                    HStack(spacing: 1.5) {
+                        Image(systemName: "arrow.down.right")
+                            .font(.system(size: 7, weight: .black))
+                        Text("\(pct)%")
+                            .font(.system(size: 9.5, weight: .black, design: .rounded))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2.5)
+                    .background {
+                        ZStack {
+                            LinearGradient(
+                                colors: [
+                                    Color.discountRed.opacity(0.95),
+                                    Color.discountRedDeep,
+                                ],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            )
+                            LinearGradient(
+                                colors: [.white.opacity(0.30), .clear],
+                                startPoint: .top, endPoint: .center
+                            )
+                        }
+                        .clipShape(Capsule())
+                    }
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
+                    .shadow(color: Color.discountRed.opacity(0.45), radius: 5, x: 0, y: 2)
+                    .offset(x: 4, y: 4)
                 }
             }
 

@@ -36,14 +36,36 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>minprice</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>kz.minprice.app</string>
+		</dict>
+	</array>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>whatsapp</string>
 		<string>tg</string>
 		<string>barcelona</string>
 	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>kz.minprice.price-check</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Для сканирования штрихкодов товаров</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Для сохранения графика сравнения цен в галерею</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>JetBrainsMono-Regular.ttf</string>

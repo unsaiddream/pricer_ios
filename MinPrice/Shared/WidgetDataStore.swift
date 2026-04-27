@@ -5,6 +5,7 @@ struct WidgetStoreData: Codable {
     let name: String
     let price: Double
     let source: String?
+    let slug: String?       // chain_slug — отличает Galmart/Toimart/Small (общий source = wolt)
     let inStock: Bool
 }
 
@@ -16,6 +17,7 @@ struct WidgetProductData: Codable {
     let maxPrice: Double
     let prevMinPrice: Double?
     let storeSource: String?
+    let storeSlug: String?  // chain_slug лучшего магазина
     let imageUrl: String?
     let stores: [WidgetStoreData]
 }
@@ -36,7 +38,7 @@ enum WidgetDataStore {
                     .prefix(5)
                     .map { s in
                         WidgetStoreData(name: s.chainName, price: s.price,
-                                        source: s.storeSource, inStock: s.inStock)
+                                        source: s.storeSource, slug: s.chainSlug, inStock: s.inStock)
                     }
             } else {
                 widgetStores = searchStores
@@ -44,14 +46,15 @@ enum WidgetDataStore {
                     .prefix(5)
                     .map { s in
                         WidgetStoreData(name: s.chainName, price: s.price,
-                                        source: s.storeSource, inStock: s.inStock)
+                                        source: s.storeSource, slug: s.chainSlug, inStock: s.inStock)
                     }
             }
 
-            let bestSource = rangeStores.min(by: { $0.price < $1.price })?.storeSource
-                ?? searchStores.min(by: { $0.price < $1.price })?.storeSource
-            let prevPrice = rangeStores.min(by: { $0.price < $1.price })?.previousPrice
-                ?? searchStores.min(by: { $0.price < $1.price })?.previousPrice
+            let bestRange = rangeStores.min(by: { $0.price < $1.price })
+            let bestSearch = searchStores.min(by: { $0.price < $1.price })
+            let bestSource = bestRange?.storeSource ?? bestSearch?.storeSource
+            let bestSlug   = bestRange?.chainSlug   ?? bestSearch?.chainSlug
+            let prevPrice  = bestRange?.previousPrice ?? bestSearch?.previousPrice
 
             return WidgetProductData(
                 id: p.uuid,
@@ -61,6 +64,7 @@ enum WidgetDataStore {
                 maxPrice: p.maxPrice ?? p.cheapestPrice ?? p.minPrice ?? 0,
                 prevMinPrice: prevPrice,
                 storeSource: bestSource,
+                storeSlug: bestSlug,
                 imageUrl: p.imageUrl,
                 stores: widgetStores
             )

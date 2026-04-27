@@ -9,7 +9,7 @@ final class CartViewModel: ObservableObject {
     private let api = APIClient.shared
 
     func load(cart: Cart?, cityId: Int) async {
-        guard let cart else { return }
+        guard let cart, !isLoading else { return }
         isLoading = true
         error = nil
 
@@ -37,6 +37,21 @@ final class CartViewModel: ObservableObject {
         } catch {}
     }
 
+    func removeItems(cart: Cart, productUuids: [String], cityId: Int) async {
+        guard !productUuids.isEmpty else { return }
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        for uuid in productUuids {
+            let body = RemoveItemBody(productUuid: uuid)
+            var req = api.request(path: Endpoint.cartRemoveItem(cart.uuid))
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.httpBody = try? encoder.encode(body)
+            _ = try? await URLSession.shared.data(for: req)
+        }
+        await load(cart: cart, cityId: cityId)
+    }
+
     func updateQuantity(cart: Cart, productUuid: String, quantity: Int, cityId: Int) async {
         guard quantity > 0 else {
             await removeItem(cart: cart, productUuid: productUuid, cityId: cityId)
@@ -55,7 +70,31 @@ final class CartViewModel: ObservableObject {
         } catch {}
     }
 
-    func transferToStore(chainSource: String, items: [CartSummaryStoreItem], cityId: Int) async -> URL? {
+    func clearCart(cart: Cart, cityId: Int) async {
+        guard let summary else { return }
+        var uuids = summary.cheapestPerProduct.map { $0.product.uuid }
+        uuids.append(contentsOf: summary.unavailableProducts.map { $0.product.uuid })
+        let unique = Array(Set(uuids))
+        guard !unique.isEmpty else { return }
+        isLoading = true
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        for uuid in unique {
+            let body = RemoveItemBody(productUuid: uuid)
+            var req = api.request(path: Endpoint.cartRemoveItem(cart.uuid))
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.httpBody = try? encoder.encode(body)
+            _ = try? await URLSession.shared.data(for: req)
+        }
+        isLoading = false
+        await load(cart: cart, cityId: cityId)
+    }
+
+    /// Открыть корзину в нативном приложении магазина (deeplink через Wolt и др.).
+    /// Для Wolt-сетей (Small/Galmart/Toimart) обязателен chainSlug — иначе бэкенд
+    /// не знает, в какую конкретную сеть генерировать deeplink.
+    func transferToStore(chainSource: String, chainSlug: String?, items: [CartSummaryStoreItem], cityId: Int) async -> URL? {
         let transferItems = items.map {
             CartTransferItem(
                 extId: String($0.extProductId ?? 0),
@@ -64,7 +103,7 @@ final class CartViewModel: ObservableObject {
                 url: $0.url
             )
         }
-        let body = CartTransferBody(chainSource: chainSource, items: transferItems, cityId: cityId)
+        let body = CartTransferBody(chainSource: chainSource, chainSlug: chainSlug, items: transferItems, cityId: cityId)
         do {
             let response = try await api.post(CartTransferResponse.self, path: Endpoint.cartTransfer(), body: body)
             if let urlStr = response.cartUrl, let url = URL(string: urlStr) { return url }

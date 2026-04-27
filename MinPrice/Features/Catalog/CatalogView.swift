@@ -1,128 +1,193 @@
 import SwiftUI
+import Kingfisher
 
 private let catalogGridColumns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
-
-// MARK: - Animated gradient background
-
-private struct AnimatedGradientBackground: View {
-    @State private var phase: Double = 0
-
-    private let colors: [[Color]] = [
-        [Color(red: 0.55, green: 0.87, blue: 1.0), Color(red: 0.18, green: 0.65, blue: 0.95), Color(red: 0.35, green: 0.78, blue: 1.0)],
-        [Color(red: 0.35, green: 0.78, blue: 1.0), Color(red: 0.55, green: 0.90, blue: 0.98), Color(red: 0.15, green: 0.58, blue: 0.90)],
-        [Color(red: 0.18, green: 0.65, blue: 0.95), Color(red: 0.40, green: 0.85, blue: 1.0), Color(red: 0.25, green: 0.70, blue: 0.95)],
-    ]
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 0.05)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            let idx = Int(t / 3) % colors.count
-            let next = (idx + 1) % colors.count
-            let frac = (t.truncatingRemainder(dividingBy: 3)) / 3
-
-            ZStack {
-                LinearGradient(
-                    colors: colors[idx],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                LinearGradient(
-                    colors: colors[next],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .opacity(frac)
-            }
-        }
-        .ignoresSafeArea()
-    }
-}
 
 struct CatalogView: View {
     @EnvironmentObject var cityStore: CityStore
     @StateObject private var vm = CatalogViewModel()
+    @State private var brandSearchItem: BrandSearchItem? = nil
 
     var body: some View {
         NavigationStack {
-            Group {
-                if vm.selectedCategory == nil {
-                    CategoryGridView(
-                        categories: vm.categories,
-                        onSelect: { category in
-                            Task { await vm.selectCategory(category, cityId: cityStore.selectedCityId) }
-                        },
-                        onRefresh: { await vm.refreshCategories() }
-                    )
-                } else {
-                    CatalogProductsView(
-                        category: vm.selectedCategory!,
-                        products: vm.products,
-                        isLoading: vm.isLoading,
-                        onLoadMore: { Task { await vm.loadMore(cityId: cityStore.selectedCityId) } },
-                        onRefresh: {
-                            await vm.selectCategory(vm.selectedCategory!, cityId: cityStore.selectedCityId)
-                        },
-                        onBack: { vm.selectedCategory = nil }
-                    )
-                }
-            }
-            .navigationTitle("")
+            CategoryGridView(
+                categories: vm.categories,
+                onRefresh: { await vm.refreshCategories() },
+                onBrandTap: { brand in brandSearchItem = BrandSearchItem(brand: brand) }
+            )
+            .background(Color.appBackground)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Каталог")
-                        .font(.jb(20, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-            }
+            .navigationTitle("")
+            .toolbarBackground(.hidden, for: .navigationBar)
             .task { await vm.loadCategories() }
+            .navigationDestination(for: Category.self) { category in
+                CatalogProductsView(vm: vm, category: category)
+                    .task { await vm.selectCategory(category, cityId: cityStore.selectedCityId) }
+            }
             .navigationDestination(for: String.self) { uuid in
                 ProductView(uuid: uuid)
+            }
+            .fullScreenCover(item: $brandSearchItem) { item in
+                BrandProductsView(brand: item.brand)
             }
         }
     }
 }
 
-// MARK: - Category Grid
-
-private let categoryPalette: [Color] = [
-    .red, .orange, .green, .blue, .purple,
-    .pink, .teal, .indigo, .yellow, .mint,
-    .cyan, .brown
+// Запасной список популярных брендов — используется если RemoteConfig не пришёл.
+// Бэкенд может перезаписать через AppConfig.popularBrands.
+private let fallbackPopularBrands: [AppConfig.PopularBrand] = [
+    .init(name: "Coca-Cola",     emoji: "🥤", logoUrl: nil),
+    .init(name: "Rakhat",        emoji: "🍫", logoUrl: nil),
+    .init(name: "Lay's",         emoji: "🍟", logoUrl: nil),
+    .init(name: "Простоквашино", emoji: "🥛", logoUrl: nil),
+    .init(name: "Nescafé",       emoji: "☕", logoUrl: nil),
+    .init(name: "Lipton",        emoji: "🍵", logoUrl: nil),
+    .init(name: "Pepsi",         emoji: "🥤", logoUrl: nil),
+    .init(name: "Barilla",       emoji: "🍝", logoUrl: nil),
 ]
+
+// MARK: - Category Grid
 
 private struct CategoryGridView: View {
     let categories: [Category]
-    let onSelect: (Category) -> Void
     let onRefresh: () async -> Void
+    let onBrandTap: (String) -> Void
 
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
     var body: some View {
         ScrollView {
+            // Header — title + contextual subtitle
+            VStack(alignment: .leading, spacing: 3) {
+                BrandTitle(text: "Каталог")
+                HStack(spacing: 6) {
+                    if !categories.isEmpty {
+                        Text("\(categories.count) \(categoriesWord(categories.count))")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.appPrimary)
+                    }
+                    Text("·")
+                        .foregroundStyle(Color.appMuted.opacity(0.5))
+                    Text("выбирайте категорию или бренд")
+                        .font(.system(size: 13, design: .rounded))
+                        .foregroundStyle(Color.appMuted)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 14)
+
+            // Brand strip — quick entry into BrandProductsView
+            BrandStrip(onTap: onBrandTap)
+                .padding(.bottom, 20)
+
+            // Section label for categories
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.appPrimary)
+                    .frame(width: 3, height: 16)
+                Text("Категории")
+                    .font(.jb(15, weight: .bold))
+                    .foregroundStyle(Color.appForeground)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
+
             if categories.isEmpty {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 80)
+                SkeletonCategoryGrid()
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
             } else {
-                LazyVGrid(columns: columns, spacing: 12) {
+                LazyVGrid(columns: columns, spacing: 14) {
                     ForEach(Array(categories.enumerated()), id: \.element.id) { idx, cat in
-                        Button { onSelect(cat) } label: {
+                        NavigationLink(value: cat) {
                             CategoryCard(
                                 category: cat,
-                                color: categoryPalette[idx % categoryPalette.count]
+                                color: BrandPalette.categoryPalette[idx % BrandPalette.categoryPalette.count]
                             )
+                        }
+                        .buttonStyle(.pressScale)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 160)
+            }
+        }
+        .refreshable { await onRefresh() }
+        .background(Color.appBackground)
+    }
+
+    private func categoriesWord(_ n: Int) -> String {
+        let m10 = n % 10, m100 = n % 100
+        if m100 >= 11 && m100 <= 19 { return "категорий" }
+        if m10 == 1 { return "категория" }
+        if m10 >= 2 && m10 <= 4 { return "категории" }
+        return "категорий"
+    }
+}
+
+// MARK: - Brand Strip
+
+private struct BrandStrip: View {
+    let onTap: (String) -> Void
+    @ObservedObject private var configStore = RemoteConfigStore.shared
+
+    /// Источник правды — RemoteConfig.popularBrands. Если бэкенд ничего не вернул,
+    /// используем встроенный fallback. Так бэк может в любой момент перетасовать
+    /// или добавить бренды без релиза приложения.
+    private var brands: [AppConfig.PopularBrand] {
+        if let remote = configStore.config.popularBrands, !remote.isEmpty {
+            return remote
+        }
+        return fallbackPopularBrands
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.discountRed)
+                    .frame(width: 3, height: 16)
+                Text("Популярные бренды")
+                    .font(.jb(15, weight: .bold))
+                    .foregroundStyle(Color.appForeground)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(brands, id: \.name) { item in
+                        Button { onTap(item.name) } label: {
+                            HStack(spacing: 7) {
+                                if let logo = item.logoUrl, let url = URL(string: logo) {
+                                    KFImage(url)
+                                        .downsampled(to: CGSize(width: 18, height: 18))
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 18, height: 18)
+                                } else if let emoji = item.emoji {
+                                    Text(emoji)
+                                        .font(.system(size: 16))
+                                }
+                                Text(item.name)
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(Color.appForeground)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(Color.appCard, in: Capsule())
+                            .overlay(Capsule().stroke(Color.appBorder, lineWidth: 1))
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
             }
         }
-        .refreshable { await onRefresh() }
-        .background(AnimatedGradientBackground())
     }
 }
 
@@ -130,38 +195,45 @@ private struct CategoryCard: View {
     let category: Category
     let color: Color
 
+    private var emoji: String {
+        category.emoji ?? fallbackEmoji(for: category.name)
+    }
+
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.ultraThinMaterial.opacity(0.6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(.white.opacity(0.5), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+            // Лёгкий цветной градиент-акцент в углу — без blur (blur на 30+ карточках лагает)
+            RadialGradient(
+                colors: [color.opacity(0.22), color.opacity(0.0)],
+                center: .bottomTrailing,
+                startRadius: 0,
+                endRadius: 90
+            )
 
-            // Большое эмодзи как декор в углу
-            Text(category.emoji ?? fallbackEmoji(for: category.name))
-                .font(.system(size: 52))
-                .opacity(0.25)
-                .offset(x: 10, y: 10)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(emoji)
+                    .font(.system(size: 40))
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(category.emoji ?? fallbackEmoji(for: category.name))
-                    .font(.system(size: 28))
                 Spacer()
+
                 Text(category.name)
                     .font(.jb(12, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.appForeground)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                    .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(14)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .padding(12)
         }
-        .frame(height: 110)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .frame(height: 120)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.appCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(color.opacity(0.22), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .contentShape(RoundedRectangle(cornerRadius: 18))
     }
 
     private func fallbackEmoji(for name: String) -> String {
@@ -184,66 +256,170 @@ private struct CategoryCard: View {
     }
 }
 
-// MARK: - Products List
-
-private struct CatalogProductsView: View {
-    let category: Category
-    let products: [Product]
-    let isLoading: Bool
-    let onLoadMore: () -> Void
-    let onRefresh: () async -> Void
-    let onBack: () -> Void
-
-    @EnvironmentObject var cartStore: CartStore
-
-    private var navTitle: String { category.name }
+private struct SkeletonCategoryGrid: View {
+    private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+    private let skeletonColor = Color.appBorder.opacity(0.6)
 
     var body: some View {
-        ScrollView {
-            if products.isEmpty && isLoading {
-                SkeletonCardGrid(count: 6)
-                    .padding(.top, 8)
-            } else {
-                LazyVGrid(columns: catalogGridColumns, spacing: 10) {
-                    ForEach(products) { product in
-                        NavigationLink(value: product.uuid) {
-                            ProductCard(product: product) {
-                                Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .onAppear {
-                            if product.uuid == products.last?.uuid { onLoadMore() }
-                        }
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
-
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
-                }
+        LazyVGrid(columns: columns, spacing: 14) {
+            ForEach(0..<8, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(skeletonColor)
+                    .frame(height: 120)
+                    .shimmer()
             }
         }
-        .padding(.bottom, 160)
-        .refreshable { await onRefresh() }
-        .background(Color.appBackground)
-        .navigationTitle(navTitle)
-        .navigationBarTitleDisplayMode(.large)
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: onBack) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text("Каталог")
+    }
+}
+
+// MARK: - Products View
+
+private struct CatalogProductsView: View {
+    @ObservedObject var vm: CatalogViewModel
+    let category: Category
+
+    @EnvironmentObject var cartStore: CartStore
+    @EnvironmentObject var cityStore: CityStore
+    @FocusState private var searchFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Search + Sort header
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.appMuted)
+                    TextField("Поиск в категории...", text: $vm.searchQuery)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.appForeground)
+                        .focused($searchFocused)
+                    if !vm.searchQuery.isEmpty {
+                        Button { vm.searchQuery = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.appMuted)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .foregroundStyle(Color.appPrimary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.appCard, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(
+                    searchFocused ? Color.appPrimary.opacity(0.5) : Color.appBorder,
+                    lineWidth: 1
+                ))
+                .padding(.horizontal, 16)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(CatalogSort.allCases, id: \.self) { option in
+                            Button { vm.sort = option } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: sortIcon(for: option))
+                                        .font(.system(size: 11, weight: .semibold))
+                                    Text(option.rawValue)
+                                        .font(.jb(12, weight: .medium))
+                                }
+                                .foregroundStyle(vm.sort == option ? .white : Color.appForeground)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    vm.sort == option ? Color.appPrimary : Color.appCard,
+                                    in: Capsule()
+                                )
+                                .overlay(Capsule().stroke(
+                                    vm.sort == option ? Color.clear : Color.appBorder,
+                                    lineWidth: 1
+                                ))
+                            }
+                            .buttonStyle(.plain)
+                            .animation(.easeInOut(duration: 0.15), value: vm.sort)
+                        }
+
+                        if !vm.filteredProducts.isEmpty {
+                            Text("\(vm.filteredProducts.count) товаров")
+                                .font(.jb(12))
+                                .foregroundStyle(Color.appMuted)
+                                .padding(.leading, 4)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 2)
                 }
             }
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+            .background(Color.appBackground)
+
+            Divider().overlay(Color.appBorder)
+
+            // Products grid
+            ScrollView {
+                if vm.products.isEmpty && vm.isLoading {
+                    SkeletonCardGrid(count: 6)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                } else if vm.filteredProducts.isEmpty && !vm.searchQuery.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 36))
+                            .foregroundStyle(Color.appMuted.opacity(0.4))
+                        Text("Ничего не найдено")
+                            .font(.jb(15, weight: .semibold))
+                            .foregroundStyle(Color.appMuted)
+                        Text("Попробуйте другой запрос")
+                            .font(.jb(13))
+                            .foregroundStyle(Color.appMuted.opacity(0.7))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
+                } else {
+                    LazyVGrid(columns: catalogGridColumns, spacing: 10) {
+                        ForEach(vm.filteredProducts) { product in
+                            NavigationLink(value: product.uuid) {
+                                ProductCard(product: product) {
+                                    Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
+                                }.equatable()
+                            }
+                            .buttonStyle(.pressScale)
+                            .onAppear {
+                                if product.uuid == vm.products.last?.uuid {
+                                    Task { await vm.loadMore(cityId: cityStore.selectedCityId) }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+
+                    if vm.isLoading {
+                        ProgressView()
+                            .tint(Color.appPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 20)
+                    }
+                }
+
+                Color.clear.frame(height: 160)
+            }
+            .background(Color.appBackground)
+            .scrollDismissesKeyboard(.immediately)
+            .refreshable {
+                await vm.selectCategory(category, cityId: cityStore.selectedCityId)
+            }
+        }
+        .background(Color.appBackground)
+        .navigationTitle(category.name)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func sortIcon(for sort: CatalogSort) -> String {
+        switch sort {
+        case .priceAsc:  return "arrow.up"
+        case .priceDesc: return "arrow.down"
+        case .discount:  return "tag"
         }
     }
 }

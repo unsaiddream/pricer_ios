@@ -10,6 +10,9 @@ enum Endpoint {
     static func bestDeals() -> String { "/best-deals/" }
     static func priceDrops() -> String { "/price-drops/" }
     static func priceIncreases() -> String { "/price-increases/" }
+    /// Готовый агрегат для главного графика-корзины. Бэк считает SQL+Python,
+    /// клиент только рендерит. См. docs/STORE_BASKET_CONTRACT.md.
+    static func storeBasket() -> String { "/home/basket/" }
 
     // MARK: - Products
     static func products() -> String { "/products/" }

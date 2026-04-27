@@ -1,4 +1,5 @@
 import SwiftUI
+import Kingfisher
 
 @main
 struct MinPriceApp: App {
@@ -6,23 +7,65 @@ struct MinPriceApp: App {
     @StateObject private var cartStore = CartStore()
     @StateObject private var favoritesStore = FavoritesStore()
     @AppStorage("isDarkMode") private var isDarkMode = false
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         applyGlobalFonts()
+        configureImageCache()
+        PriceAlertManager.shared.registerBGTask()
+    }
+
+    // Лимиты для Kingfisher — без них на длинных скроллах память растёт пока OS
+    // не начнёт выгружать кэш и выкидывать резкие GC-стуттеры.
+    private func configureImageCache() {
+        let cache = ImageCache.default
+        // Память — 80MB (хватает на ~400 даунсемпленных карточек)
+        cache.memoryStorage.config.totalCostLimit = 80 * 1024 * 1024
+        cache.memoryStorage.config.countLimit = 250
+        cache.memoryStorage.config.expiration = .seconds(600)
+        // Диск — 200MB, неделя жизни
+        cache.diskStorage.config.sizeLimit = 200 * 1024 * 1024
+        cache.diskStorage.config.expiration = .days(7)
+
+        // Тайм-аут запросов — чтобы зависшие картинки не блокировали загрузчик
+        let downloader = ImageDownloader.default
+        downloader.downloadTimeout = 12
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            LaunchGate()
                 .environmentObject(cityStore)
                 .environmentObject(cartStore)
                 .environmentObject(favoritesStore)
                 .preferredColorScheme(isDarkMode ? .dark : .light)
                 .task {
+                    // Сессия — критическая (даёт guest-uuid). Стартует первой.
+                    // Cities и cart — параллельно после неё; cart использует дефолтный
+                    // selectedCityId который доступен сразу из @AppStorage CityStore.
                     await APIClient.shared.initSession()
-                    await cityStore.loadCities()
-                    await cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
+                    async let cities: () = cityStore.loadCities()
+                    async let cart: () = cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
+                    _ = await (cities, cart)
                 }
+                .onOpenURL { url in
+                    // minprice://product/UUID
+                    guard url.scheme == "minprice" else { return }
+                    if url.host == "product", let uuid = url.pathComponents.dropFirst().first {
+                        NotificationCenter.default.post(name: .priceAlertOpen, object: uuid)
+                    }
+                }
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active {
+                PriceAlertManager.shared.scheduleBGTask()
+                Task {
+                    await PriceAlertManager.shared.checkIfNeeded(
+                        favorites: favoritesStore.favorites,
+                        cityId: cityStore.selectedCityId
+                    )
+                }
+            }
         }
     }
 

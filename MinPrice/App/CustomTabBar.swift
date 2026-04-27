@@ -31,9 +31,20 @@ struct CustomTabBar: View {
     @EnvironmentObject var cartStore: CartStore
     @EnvironmentObject var favoritesStore: FavoritesStore
 
+    /// Список табов с учётом feature-флагов из RemoteConfig.
+    /// Сейчас только discounts можно отключать; остальные — основа навигации.
+    private var visibleTabs: [Tab] {
+        Tab.allCases.filter { tab in
+            if tab == .discounts && !ConfigSnapshot.isEnabled(.discountsTab) {
+                return false
+            }
+            return true
+        }
+    }
+
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(Tab.allCases, id: \.self) { tab in
+            ForEach(visibleTabs, id: \.self) { tab in
                 Button {
                     if selected != tab { HapticManager.selection() }
                     selected = tab
@@ -45,6 +56,12 @@ struct CustomTabBar: View {
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 24, height: 24)
+                                    .foregroundStyle(selected == tab ? Color.appPrimary : Color.appMuted)
+                            } else if tab == .discounts {
+                                Image(systemName: selected == tab ? "flame.fill" : "flame")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 22, height: 22)
                                     .foregroundStyle(selected == tab ? Color.appPrimary : Color.appMuted)
                             } else {
                                 Image(selected == tab ? tab.activeIcon : tab.icon)

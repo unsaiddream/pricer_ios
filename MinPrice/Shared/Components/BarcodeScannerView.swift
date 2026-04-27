@@ -235,7 +235,6 @@ private final class ScanDimView: UIView {
 
 private final class ScanFrameView: UIView {
     override func draw(_ rect: CGRect) {
-        let corner: CGFloat = 20
         let len: CGFloat = 32
         let lw: CGFloat = 3
         let color = UIColor(red: 0.07, green: 0.71, blue: 0.84, alpha: 1)

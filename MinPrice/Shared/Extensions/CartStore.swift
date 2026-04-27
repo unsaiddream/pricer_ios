@@ -6,6 +6,7 @@ import UserNotifications
 final class CartStore: ObservableObject {
     @Published var cart: Cart?
     @Published var itemsCount: Int = 0
+    @Published var refreshCount: Int = 0
     @Published var toastMessage: String? = nil
     @Published var toastIsError: Bool = false
 
@@ -15,10 +16,15 @@ final class CartStore: ObservableObject {
         do {
             let response = try await api.fetch(CartsResponse.self, path: Endpoint.carts())
             cart = response.results.first(where: { $0.isActive })
-            itemsCount = cart?.itemsCount ?? 0
+            // Don't set itemsCount here — CartView summary is the authoritative source
             syncWidget()
             updateBadge()
-        } catch {}
+        } catch {
+            // On error (404, network) reset to safe empty state
+            cart = nil
+            itemsCount = 0
+            updateBadge()
+        }
     }
 
     func quickAdd(productUuid: String, quantity: Int = 1) async throws {
@@ -27,6 +33,7 @@ final class CartStore: ObservableObject {
             let response = try await api.post(QuickAddResponse.self, path: Endpoint.cartQuickAdd(), body: body)
             cart = try? await api.fetch(Cart.self, path: Endpoint.cart(response.cartUuid))
             itemsCount = response.itemsCount
+            refreshCount += 1
             syncWidget()
             updateBadge()
             HapticManager.success()
