@@ -38,9 +38,11 @@ final class CartStore: ObservableObject {
             updateBadge()
             HapticManager.success()
             showToast("Товар добавлен")
+            CrashReporter.action("cart_add", data: ["product_uuid": productUuid, "qty": quantity])
         } catch {
             HapticManager.error()
             showToast("Не удалось добавить товар", isError: true)
+            CrashReporter.capture(error, context: ["op": "cart_add", "product_uuid": productUuid])
             throw error
         }
     }

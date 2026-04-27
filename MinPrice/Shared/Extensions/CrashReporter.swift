@@ -57,6 +57,35 @@ enum CrashReporter {
         }
     }
 
+    /// Записать breadcrumb — мини-событие в цепочку перед крэшем.
+    /// Не отправляется в Sentry самостоятельно, прикрепляется автоматически
+    /// к следующему `capture(...)`. Используем для ключевых действий
+    /// пользователя, чтобы при разборе крэша было понятно «что он делал
+    /// до этого».
+    ///
+    /// Категории: `ui`, `nav`, `cart`, `network`, `analytics`.
+    static func breadcrumb(_ message: String, category: String = "ui", data: [String: Any] = [:]) {
+        let crumb = Breadcrumb()
+        crumb.category = category
+        crumb.message = message
+        crumb.level = .info
+        if !data.isEmpty { crumb.data = data }
+        SentrySDK.addBreadcrumb(crumb)
+        Log.debug("[\(category)] \(message)", data)
+    }
+
+    // MARK: - Высокоуровневые helper'ы (используются по всему UI)
+
+    /// Открытие экрана — основа навигационной телеметрии.
+    static func screen(_ name: String, data: [String: Any] = [:]) {
+        breadcrumb("screen \(name)", category: "nav", data: data)
+    }
+
+    /// Действие пользователя — кнопка, тап, добавление в корзину и т.п.
+    static func action(_ name: String, data: [String: Any] = [:]) {
+        breadcrumb(name, category: "analytics", data: data)
+    }
+
     /// Прикрепляет user-id (guest UUID) к будущим event'ам, чтобы видеть
     /// сколько уникальных гостей затронул крэш. Без email/имени.
     static func setGuestUUID(_ uuid: String?) {

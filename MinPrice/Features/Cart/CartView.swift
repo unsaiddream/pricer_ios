@@ -87,6 +87,23 @@ private struct EmptyCartView: View {
                     .foregroundStyle(Color.appMuted)
                     .multilineTextAlignment(.center)
             }
+            Button {
+                NotificationCenter.default.post(name: .switchTab, object: Tab.catalog)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.grid.2x2.fill")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("Перейти в каталог")
+                        .font(.system(size: 14, weight: .heavy, design: .rounded))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(LinearGradient.brandPrimary, in: Capsule())
+                .shadow(color: Color.appPrimary.opacity(0.30), radius: 8, x: 0, y: 3)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()

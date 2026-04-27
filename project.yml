@@ -71,6 +71,9 @@ targets:
     platform: iOS
     sources:
       - MinPriceTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: MinPrice
 

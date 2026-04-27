@@ -43,7 +43,7 @@ struct FavoritesView: View {
         NavigationStack {
             Group {
                 if favoritesStore.favorites.isEmpty {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 18) {
                         ZStack {
                             Circle()
                                 .fill(Color.appPrimary.opacity(0.08))
@@ -61,6 +61,23 @@ struct FavoritesView: View {
                                 .foregroundStyle(Color.appMuted)
                                 .multilineTextAlignment(.center)
                         }
+                        Button {
+                            NotificationCenter.default.post(name: .switchTab, object: Tab.catalog)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "square.grid.2x2.fill")
+                                    .font(.system(size: 13, weight: .bold))
+                                Text("Найти товары")
+                                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(LinearGradient.brandPrimary, in: Capsule())
+                            .shadow(color: Color.appPrimary.opacity(0.30), radius: 8, x: 0, y: 3)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 6)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.appBackground)

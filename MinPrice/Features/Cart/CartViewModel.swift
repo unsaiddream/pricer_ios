@@ -104,10 +104,20 @@ final class CartViewModel: ObservableObject {
             )
         }
         let body = CartTransferBody(chainSource: chainSource, chainSlug: chainSlug, items: transferItems, cityId: cityId)
+        CrashReporter.action("cart_transfer_start", data: [
+            "chain_source": chainSource,
+            "chain_slug":   chainSlug ?? "",
+            "items":        items.count,
+        ])
         do {
             let response = try await api.post(CartTransferResponse.self, path: Endpoint.cartTransfer(), body: body)
-            if let urlStr = response.cartUrl, let url = URL(string: urlStr) { return url }
-        } catch {}
+            if let urlStr = response.cartUrl, let url = URL(string: urlStr) {
+                CrashReporter.action("cart_transfer_open", data: ["chain_slug": chainSlug ?? chainSource])
+                return url
+            }
+        } catch {
+            CrashReporter.capture(error, context: ["op": "cart_transfer", "chain": chainSlug ?? chainSource])
+        }
         return nil
     }
 }

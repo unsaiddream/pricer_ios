@@ -18,6 +18,10 @@ final class FavoritesStore: ObservableObject {
             HapticManager.impact(.light)
         }
         save()
+        CrashReporter.action(
+            adding ? "favorite_add" : "favorite_remove",
+            data: ["product_uuid": product.uuid, "total": favorites.count]
+        )
     }
 
     func isFavorited(_ uuid: String) -> Bool {

@@ -56,14 +56,17 @@ struct AppConfig: Codable {
     }
 
     /// Стабильные ключи feature-флагов. Хранение в `features: [String: Bool]`.
+    /// rawValue — snake_case, потому что JSONDecoder.convertFromSnakeCase не
+    /// трогает ключи словарей. Бэкенд шлёт `{"store_basket_chart": true}` →
+    /// в `features` оно так и остаётся.
     enum FeatureFlag: String {
-        case storeBasketChart        // главная — большой график-корзина
-        case priceHistoryChart       // карточка товара — график истории
-        case discountsTab            // вкладка "Скидки"
-        case widgetSync              // sync виджетов через App Group
-        case barcodeScanner          // сканер штрихкодов
-        case priceAlerts             // уведомления по избранным товарам
-        case cartTransfer            // deeplink в магазин (Wolt и т.д.)
+        case storeBasketChart  = "store_basket_chart"
+        case priceHistoryChart = "price_history_chart"
+        case discountsTab      = "discounts_tab"
+        case widgetSync        = "widget_sync"
+        case barcodeScanner    = "barcode_scanner"
+        case priceAlerts       = "price_alerts"
+        case cartTransfer      = "cart_transfer"
     }
 }
 

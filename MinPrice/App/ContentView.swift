@@ -145,6 +145,11 @@ struct ContentView: View {
                 alertProductUuid = uuid
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .switchTab)) { note in
+            if let tab = note.object as? Tab {
+                withAnimation(.easeInOut(duration: 0.22)) { selectedTab = tab }
+            }
+        }
     }
 
     private func handleBarcodeScan(_ barcode: String) async {

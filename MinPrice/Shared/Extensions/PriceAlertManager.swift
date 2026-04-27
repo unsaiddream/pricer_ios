@@ -180,4 +180,7 @@ extension PriceAlertManager: UNUserNotificationCenterDelegate {
 
 extension Notification.Name {
     static let priceAlertOpen = Notification.Name("priceAlertOpen")
+    /// Запрос переключиться на вкладку (object: Tab). Используется для CTA из
+    /// empty-states — например, "Перейти в каталог" с пустого избранного.
+    static let switchTab = Notification.Name("switchTab")
 }
