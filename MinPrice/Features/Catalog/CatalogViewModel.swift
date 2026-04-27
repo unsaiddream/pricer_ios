@@ -99,8 +99,10 @@ final class CatalogViewModel: ObservableObject {
     }
 
     private func loadProductsFallback(category: Category, cityId: Int, append: Bool) async {
+        // /api/products/ — DRF, фильтр canonical_category_id (не canonical_category!)
+        // Пагинация 1-индексированная, у нас page стартует с 1 — нормально.
         let items = [
-            URLQueryItem(name: "canonical_category", value: String(category.id)),
+            URLQueryItem(name: "canonical_category_id", value: String(category.id)),
             URLQueryItem(name: "city_id", value: String(cityId)),
             URLQueryItem(name: "page", value: String(page)),
         ]

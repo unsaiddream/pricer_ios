@@ -205,10 +205,12 @@ final class HomeViewModel: ObservableObject {
     }
 
     private func fetchProductsByCategoryId(categoryId: Int, cityId: Int) async -> [Product] {
+        // /api/products/ — DRF, фильтр canonical_category_id (не canonical_category!)
+        // и пагинация 1-индексированная (page=0 → 404 "Invalid page").
         let items = [
-            URLQueryItem(name: "canonical_category", value: String(categoryId)),
+            URLQueryItem(name: "canonical_category_id", value: String(categoryId)),
             URLQueryItem(name: "city_id", value: String(cityId)),
-            URLQueryItem(name: "page", value: "0"),
+            URLQueryItem(name: "page", value: "1"),
         ]
         if let r = try? await api.fetch(ProductsResponse.self, path: Endpoint.products(), queryItems: items) {
             return r.results
