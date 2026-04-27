@@ -68,6 +68,8 @@
 	<string>Сохраняем график сравнения цен в галерею, чтобы вы могли поделиться им</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>SENTRY_DSN</key>
+	<string>$(SENTRY_DSN)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>JetBrainsMono-Regular.ttf</string>

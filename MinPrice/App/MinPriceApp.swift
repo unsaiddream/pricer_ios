@@ -12,6 +12,9 @@ struct MinPriceApp: App {
     init() {
         applyGlobalFonts()
         configureImageCache()
+        // Sentry — стартует первым чтобы поймать падения на ранней инициализации.
+        // Если DSN не задан, no-op.
+        CrashReporter.start()
         PriceAlertManager.shared.registerBGTask()
     }
 
@@ -44,6 +47,9 @@ struct MinPriceApp: App {
                     // Cities и cart — параллельно после неё; cart использует дефолтный
                     // selectedCityId который доступен сразу из @AppStorage CityStore.
                     await APIClient.shared.initSession()
+                    // Привязываем гость-UUID к Sentry — увидим сколько уникальных
+                    // пользователей затронул крэш (без личных данных).
+                    CrashReporter.setGuestUUID(APIClient.shared.guestUUID)
                     async let cities: () = cityStore.loadCities()
                     async let cart: () = cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
                     _ = await (cities, cart)

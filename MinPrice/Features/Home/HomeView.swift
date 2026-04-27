@@ -35,6 +35,15 @@ struct HomeView: View {
 
                     if vm.isLoading {
                         SkeletonGrid()
+                    } else if vm.bestDeals.isEmpty && vm.priceDrops.isEmpty
+                              && vm.basketSummary == nil && vm.basketProducts.isEmpty {
+                        // Полный пустой экран после загрузки = сетевой/серверный сбой.
+                        // Показываем ErrorStateView с retry, иначе пользователь видит белый.
+                        ErrorStateView(
+                            vm.errorMessage != nil ? .networkError : .serverError,
+                            retry: { Task { await vm.load(cityId: cityStore.selectedCityId) } }
+                        )
+                        .frame(minHeight: 400)
                     } else {
                         if let error = vm.errorMessage {
                             ErrorBanner(message: error) {

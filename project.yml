@@ -31,8 +31,15 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_ENTITLEMENTS: MinPrice/MinPrice.entitlements
+        # Sentry DSN — пусто по умолчанию (no-op). Заполнить в xcconfig
+        # на CI или локальном Build Settings когда будет аккаунт. Если пусто,
+        # Info.plist получит "$(SENTRY_DSN)" и CrashReporter определит как
+        # выключенный.
+        SENTRY_DSN: ""
     dependencies:
       - package: Kingfisher
+      - package: Sentry
+        product: Sentry
       - target: MinPriceWidgetsExtension
     scheme:
       testTargets:
@@ -71,3 +78,6 @@ packages:
   Kingfisher:
     url: https://github.com/onevcat/Kingfisher
     from: 7.0.0
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa
+    from: 8.40.0

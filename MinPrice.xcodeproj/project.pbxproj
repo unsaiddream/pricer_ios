@@ -14,6 +14,8 @@
 		122A8162991A40BDA1430F6C /* RemoteConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 421083B2DC45654AAAB42BC2 /* RemoteConfigStore.swift */; };
 		1C66C13C7751E6458EE95BD3 /* BrandProductsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D854ADCB862D5BF09AFC58F5 /* BrandProductsView.swift */; };
 		1FB82994602B85FF80425590 /* Cart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E4BB3CBCA019959D297CFAA /* Cart.swift */; };
+		219BF6992D26D3606414BB95 /* ErrorStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6B4A8F72C9D242A79FB485 /* ErrorStateView.swift */; };
+		394D06B794807A8F396F8ADF /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = FC1F884C0544482F8A37B19B /* Sentry */; };
 		3EFEBBA3B22DF1F23DF03AC9 /* FlexibleDouble.swift in Sources */ = {isa = PBXBuildFile; fileRef = A433A9185FDB62603916F658 /* FlexibleDouble.swift */; };
 		4085FA27DCD652492450ABA0 /* JetBrainsMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7891C9FF441B92A50004161E /* JetBrainsMono-Regular.ttf */; };
 		42F9E8C2BB30B0F871194AD0 /* SearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D388D33F989913BBBC98026 /* SearchViewModel.swift */; };
@@ -25,11 +27,13 @@
 		5731FB34050A213FABAC9130 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C801FD7C4A6571F061D7F215 /* FavoritesView.swift */; };
 		582244036437E170F547CDD5 /* CustomTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6FB20C026D574CDF89DDA54 /* CustomTabBar.swift */; };
 		596FF7E93FE99E6F2D3A9214 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BB68BE483166C93F408328A /* AppConfig.swift */; };
+		6219716570A776FA2B254802 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF9795C4E9C8485FDDC922C /* OnboardingView.swift */; };
 		6324CC5FFC2688EA72CD7A80 /* DiscountsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3F5437A7368BA33A25A492 /* DiscountsViewModel.swift */; };
 		65D3DADD8148D50A352B5452 /* Product.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58BADD00C37AEA77A8B51703 /* Product.swift */; };
 		6894C3FC32D15D72858A1E69 /* JetBrainsMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 24804969B541420D10AD4638 /* JetBrainsMono-Medium.ttf */; };
 		6AB9E5846C4E146D6E553E17 /* StoreBasketChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 516755B6C91F5ECEE3ACD9A1 /* StoreBasketChart.swift */; };
 		6E755952407D5B538FB63BBE /* MinPriceWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118FABFD504FE88FA99272AA /* MinPriceWidgets.swift */; };
+		6E884B5D04180CCE5DCA3795 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9004411F7B69930112A43B07 /* NetworkMonitor.swift */; };
 		718D9A0F31B6AE5C78D0DD72 /* ProductCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 827ABC4D0D3FBA84F8870B69 /* ProductCard.swift */; };
 		77477D8489986E02D41C7C22 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B3AF38D1FB7BCB6FBF94881E /* PrivacyInfo.xcprivacy */; };
 		7AFAE4AE6FCF2AFCB084E137 /* KFImage+Downsample.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9B6002CEC697E9B3EC3B261 /* KFImage+Downsample.swift */; };
@@ -37,6 +41,7 @@
 		832923686CD47F99B8984DD0 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5033FE02A61D955622C11BD5 /* APIClient.swift */; };
 		83D10CEEA3362E313D8F1E7D /* DiscountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3782F677BE28CF5395BDBE /* DiscountsView.swift */; };
 		85AADDEF87A01D003F321787 /* Reference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41EE6BCDB5810EB5880812FE /* Reference.swift */; };
+		88871BF6AC2B137E0F79E40C /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61BCECE5CF2D6165E36F97B0 /* CrashReporter.swift */; };
 		897AA3499E7AB8F5BE0E14E9 /* Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = E044BE845B339FA2254E4E37 /* Search.swift */; };
 		8F80D5FD18E5698F974600F8 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E57051CFCC5B58C4AF0C838 /* HapticManager.swift */; };
 		8FE0B14F7A167A7C1BF25A93 /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 208CB6C4A8A0BDB5B57766EB /* WidgetDataStore.swift */; };
@@ -107,6 +112,7 @@
 		118FABFD504FE88FA99272AA /* MinPriceWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinPriceWidgets.swift; sourceTree = "<group>"; };
 		11A8F0809BA8E300E8EA6AE6 /* JetBrainsMono-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Bold.ttf"; sourceTree = "<group>"; };
 		1213CB1A9A2A8921F566D744 /* CatalogViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogViewModel.swift; sourceTree = "<group>"; };
+		1D6B4A8F72C9D242A79FB485 /* ErrorStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorStateView.swift; sourceTree = "<group>"; };
 		1E4BB3CBCA019959D297CFAA /* Cart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cart.swift; sourceTree = "<group>"; };
 		1F1F1A158F3599A5E363F168 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		208CB6C4A8A0BDB5B57766EB /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
@@ -123,6 +129,7 @@
 		5033FE02A61D955622C11BD5 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		516755B6C91F5ECEE3ACD9A1 /* StoreBasketChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreBasketChart.swift; sourceTree = "<group>"; };
 		58BADD00C37AEA77A8B51703 /* Product.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Product.swift; sourceTree = "<group>"; };
+		61BCECE5CF2D6165E36F97B0 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
 		6426F79EDBB88EA31D3F63FB /* StoreLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreLogoView.swift; sourceTree = "<group>"; };
 		6A1AE01B826ED853B13DCC91 /* PriceAlertManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceAlertManager.swift; sourceTree = "<group>"; };
 		6BB68BE483166C93F408328A /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
@@ -138,6 +145,7 @@
 		7F073ACEAC0D0E59168FEFA8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		827ABC4D0D3FBA84F8870B69 /* ProductCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductCard.swift; sourceTree = "<group>"; };
 		8293DFC24C427CC666A5EA2F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9004411F7B69930112A43B07 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		917CF412BDA372FA13948ED8 /* ProductViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductViewModel.swift; sourceTree = "<group>"; };
 		9470D0691DC6771C78DE6029 /* ProductShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductShareCard.swift; sourceTree = "<group>"; };
 		A01A5B2740EFD5959ACFC9E9 /* ProductRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductRow.swift; sourceTree = "<group>"; };
@@ -163,6 +171,7 @@
 		EB56F258A3C9EB6FB6E90C1B /* CartViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartViewModel.swift; sourceTree = "<group>"; };
 		F60AC5E58DA06E943307991E /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
 		FB3F0859DAC317D457CC4678 /* MinPriceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinPriceApp.swift; sourceTree = "<group>"; };
+		FBF9795C4E9C8485FDDC922C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		FF3782F677BE28CF5395BDBE /* DiscountsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscountsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -172,6 +181,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BE1F489797F99C979AA73E0C /* Kingfisher in Frameworks */,
+				394D06B794807A8F396F8ADF /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -193,6 +203,7 @@
 			children = (
 				A10AE014712B94C1B5746983 /* BarcodeScannerView.swift */,
 				4C37ADE1454AA4658E10A3C4 /* CitySelectorSheet.swift */,
+				1D6B4A8F72C9D242A79FB485 /* ErrorStateView.swift */,
 				C9B6002CEC697E9B3EC3B261 /* KFImage+Downsample.swift */,
 				827ABC4D0D3FBA84F8870B69 /* ProductCard.swift */,
 				A01A5B2740EFD5959ACFC9E9 /* ProductRow.swift */,
@@ -335,10 +346,12 @@
 				6FCFC8501CF130FB35572C60 /* AppTheme.swift */,
 				349C0228CE744097BF3EB040 /* CartStore.swift */,
 				A5D664E3A9043E97A2FD19D6 /* CityStore.swift */,
+				61BCECE5CF2D6165E36F97B0 /* CrashReporter.swift */,
 				310244299A5690DF50DAA0BD /* FavoritesStore.swift */,
 				3B64DA6414F1D15012962A06 /* Font+JetBrains.swift */,
 				0E57051CFCC5B58C4AF0C838 /* HapticManager.swift */,
 				F60AC5E58DA06E943307991E /* Log.swift */,
+				9004411F7B69930112A43B07 /* NetworkMonitor.swift */,
 				6A1AE01B826ED853B13DCC91 /* PriceAlertManager.swift */,
 				421083B2DC45654AAAB42BC2 /* RemoteConfigStore.swift */,
 			);
@@ -362,6 +375,7 @@
 				C6FB20C026D574CDF89DDA54 /* CustomTabBar.swift */,
 				7D4BA2D81A04C0DEDBA7830F /* LaunchGate.swift */,
 				FB3F0859DAC317D457CC4678 /* MinPriceApp.swift */,
+				FBF9795C4E9C8485FDDC922C /* OnboardingView.swift */,
 				CD37198C751CEDA4BAB87F6F /* SplashView.swift */,
 			);
 			path = App;
@@ -427,6 +441,7 @@
 			name = MinPrice;
 			packageProductDependencies = (
 				3453B927399015A83C298586 /* Kingfisher */,
+				FC1F884C0544482F8A37B19B /* Sentry */,
 			);
 			productName = MinPrice;
 			productReference = 7DE071A1AFA8A0B73124B822 /* MinPrice.app */;
@@ -502,6 +517,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				35DC283593B96FA9AEEC5F98 /* XCRemoteSwiftPackageReference "Kingfisher" */,
+				69BBA4AD957785E6696014C8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5DF3AD88D0777772B47A2816 /* Products */;
@@ -567,10 +583,12 @@
 				C55710AE00CE25D6DF1C83FF /* CitySelectorSheet.swift in Sources */,
 				4CD7C4EC307B1003CA8CE0DE /* CityStore.swift in Sources */,
 				119BCC5EDC005137C0E2A4A9 /* ContentView.swift in Sources */,
+				88871BF6AC2B137E0F79E40C /* CrashReporter.swift in Sources */,
 				582244036437E170F547CDD5 /* CustomTabBar.swift in Sources */,
 				83D10CEEA3362E313D8F1E7D /* DiscountsView.swift in Sources */,
 				6324CC5FFC2688EA72CD7A80 /* DiscountsViewModel.swift in Sources */,
 				985B6D08E2EB744A671ADA75 /* Endpoints.swift in Sources */,
+				219BF6992D26D3606414BB95 /* ErrorStateView.swift in Sources */,
 				C9CEF334840E6ECCAE80BC71 /* FavoritesStore.swift in Sources */,
 				5731FB34050A213FABAC9130 /* FavoritesView.swift in Sources */,
 				3EFEBBA3B22DF1F23DF03AC9 /* FlexibleDouble.swift in Sources */,
@@ -582,6 +600,8 @@
 				46C0F6C628FDB4555DBC08B5 /* LaunchGate.swift in Sources */,
 				0FB8C4EDF97C4019870F54E4 /* Log.swift in Sources */,
 				D6DE07817D02B08DCAA89408 /* MinPriceApp.swift in Sources */,
+				6E884B5D04180CCE5DCA3795 /* NetworkMonitor.swift in Sources */,
+				6219716570A776FA2B254802 /* OnboardingView.swift in Sources */,
 				E675B427D81DB0FE913A177B /* PriceAlertManager.swift in Sources */,
 				A546643FF9415593168AD165 /* PriceHistory.swift in Sources */,
 				65D3DADD8148D50A352B5452 /* Product.swift in Sources */,
@@ -656,6 +676,7 @@
 					"@executable_path/Frameworks",
 				);
 				SDKROOT = iphoneos;
+				SENTRY_DSN = "";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -789,6 +810,7 @@
 					"@executable_path/Frameworks",
 				);
 				SDKROOT = iphoneos;
+				SENTRY_DSN = "";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -911,6 +933,14 @@
 				minimumVersion = 7.0.0;
 			};
 		};
+		69BBA4AD957785E6696014C8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.40.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -918,6 +948,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 35DC283593B96FA9AEEC5F98 /* XCRemoteSwiftPackageReference "Kingfisher" */;
 			productName = Kingfisher;
+		};
+		FC1F884C0544482F8A37B19B /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 69BBA4AD957785E6696014C8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

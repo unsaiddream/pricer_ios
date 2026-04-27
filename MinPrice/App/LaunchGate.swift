@@ -9,6 +9,8 @@ import SwiftUI
 /// 4) Иначе — обычный ContentView. Soft-update показывается баннером поверх него.
 struct LaunchGate: View {
     @StateObject private var configStore = RemoteConfigStore.shared
+    @StateObject private var net = NetworkMonitor.shared
+    @AppStorage("hasOnboarded") private var hasOnboarded = false
     @State private var didStartFetch = false
 
     var body: some View {
@@ -21,15 +23,26 @@ struct LaunchGate: View {
                 MaintenanceView(message: message)
                     .transition(.opacity)
             case .softUpdate, .ok:
-                ContentView()
-                    .overlay(alignment: .top) {
-                        if case .softUpdate = configStore.versionGate {
-                            SoftUpdateBanner(storeURL: configStore.config.appStoreUrl)
-                                .padding(.horizontal, 12)
-                                .padding(.top, 8)
+                if hasOnboarded {
+                    ContentView()
+                        .overlay(alignment: .top) {
+                            VStack(spacing: 6) {
+                                if !net.isConnected {
+                                    OfflineBanner()
+                                }
+                                if case .softUpdate = configStore.versionGate {
+                                    SoftUpdateBanner(storeURL: configStore.config.appStoreUrl)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.top, 8)
+                            .animation(.easeInOut(duration: 0.25), value: net.isConnected)
                         }
-                    }
-                    .transition(.opacity)
+                        .transition(.opacity)
+                } else {
+                    OnboardingView(onComplete: { hasOnboarded = true })
+                        .transition(.opacity)
+                }
             }
 
             if !configStore.isLoaded {
@@ -39,11 +52,36 @@ struct LaunchGate: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: configStore.isLoaded)
+        .animation(.easeInOut(duration: 0.25), value: hasOnboarded)
         .task {
             guard !didStartFetch else { return }
             didStartFetch = true
             await configStore.refresh()
         }
+    }
+}
+
+// MARK: - Offline banner
+
+private struct OfflineBanner: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+            Text("Нет соединения")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+            Spacer()
+            Text("Проверьте интернет")
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.discountRed, in: RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.discountRed.opacity(0.35), radius: 10, x: 0, y: 4)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
 
