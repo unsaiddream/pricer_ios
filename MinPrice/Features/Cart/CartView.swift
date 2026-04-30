@@ -61,6 +61,7 @@ struct CartView: View {
         }
         .onChange(of: vm.summary?.cheapestPerProduct.count) { count in
             cartStore.itemsCount = count ?? 0
+            cartStore.syncWidget()
         }
     }
 }
@@ -188,7 +189,7 @@ private struct CartSummaryView: View {
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(Color.appMuted)
                                 .kerning(0.8)
-                            Text("\(formattedPrice(localTotal)) ₸")
+                            Text(formatPriceTg(localTotal))
                                 .font(.system(size: 30, weight: .black))
                                 .foregroundStyle(Color.savingsGreen)
                                 .contentTransition(.numericText())
@@ -343,14 +344,6 @@ private struct CartSummaryView: View {
         }
     }
 
-    private func formattedPrice(_ val: Double) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.groupingSeparator = " "
-        f.maximumFractionDigits = 0
-        return f.string(from: NSNumber(value: val)) ?? "\(Int(val))"
-    }
-
     private func itemsWord(_ n: Int) -> String {
         let m10 = n % 10, m100 = n % 100
         if m100 >= 11 && m100 <= 19 { return "товаров" }
@@ -390,7 +383,7 @@ private struct CartItemRow: View {
                         .font(.system(size: 11))
                         .foregroundStyle(Color.appMuted)
                 }
-                Text("\(Int(item.price)) ₸ / шт")
+                Text("\(formatPriceTg(item.price)) / шт")
                     .font(.system(size: 11))
                     .foregroundStyle(Color.appMuted.opacity(0.7))
             }
@@ -398,7 +391,7 @@ private struct CartItemRow: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 8) {
-                Text("\(Int(item.price * Double(qty))) ₸")
+                Text(formatPriceTg(item.price * Double(qty)))
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Color.appForeground)
                     .contentTransition(.numericText())
@@ -503,7 +496,7 @@ private struct StoreComparisonSection: View {
                         Spacer()
 
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text("\(Int(store.totalPrice)) ₸")
+                            Text(formatPriceTg(store.totalPrice))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(isCheapest ? Color.savingsGreen : Color.appForeground)
                             if store.availableCount < store.totalCount {

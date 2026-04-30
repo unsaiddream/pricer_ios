@@ -108,12 +108,12 @@ struct ProductCard: View, Equatable {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if let price = displayPrice {
-                        Text("\(Int(price)) ₸")
+                        Text(formatPriceTg(price))
                             .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(oldPrice != nil ? Color.savingsGreen : Color.appForeground)
                     }
                     if let prev = oldPrice {
-                        Text("\(Int(prev)) ₸")
+                        Text(formatPriceTg(prev))
                             .font(.system(size: 11))
                             .foregroundStyle(Color.appMuted)
                             .strikethrough()
@@ -144,7 +144,7 @@ struct ProductCard: View, Equatable {
                     Image(systemName: "plus")
                         .font(.system(size: 11, weight: .bold))
                     if let price = displayPrice {
-                        Text("\(Int(price)) ₸")
+                        Text(formatPriceTg(price))
                             .font(.system(size: 13, weight: .semibold))
                     } else {
                         Text("В корзину")
@@ -195,7 +195,7 @@ private struct StoreGrid: View {
                     VStack(spacing: 3) {
                         StoreLogoView(url: slot.logoURL, source: slot.storeSource, size: 22)
                             .opacity(slot.inStock ? 1.0 : 0.4)
-                        Text("\(Int(slot.price)) ₸")
+                        Text(formatPriceTg(slot.price))
                             .font(.system(size: 10, weight: isBest ? .bold : .regular))
                             .foregroundStyle(isBest ? Color.appPrimary : Color.appMuted)
                             .lineLimit(1)

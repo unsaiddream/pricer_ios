@@ -76,11 +76,7 @@ private func storeColor(_ source: String?) -> Color  { storeColor(slug: nil, sou
 private func storeAsset(_ source: String?) -> String? { storeAsset(slug: nil, source: source) }
 
 private func fmt(_ v: Double) -> String {
-    let n = NumberFormatter()
-    n.numberStyle = .decimal
-    n.groupingSeparator = " "
-    n.maximumFractionDigits = 0
-    return "\(n.string(from: NSNumber(value: v)) ?? "\(Int(v))") ₸"
+    formatPriceTg(v)
 }
 
 private func priceFont(_ size: CGFloat, weight: Font.Weight = .black) -> Font {
@@ -417,7 +413,7 @@ private struct DiscountPill: View {
     }
 }
 
-// "Экономия XXX ₸" — зелёная пилюля
+// "Экономия XXX тг" — зелёная пилюля
 private struct SavingsPill: View {
     let amount: Double
     var compact: Bool = false

@@ -47,7 +47,7 @@ final class CartStore: ObservableObject {
         }
     }
 
-    private func syncWidget() {
+    func syncWidget() {
         var total: Double = 0
         if let items = cart?.items {
             for item in items {

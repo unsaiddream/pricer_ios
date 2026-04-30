@@ -363,7 +363,7 @@ private struct PriceHero: View {
 
             // ── Hero price — большая, центральная ──
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(formatted(range.min))
+                Text(formatPriceTg(range.min))
                     .font(.system(size: 52, weight: .black, design: .rounded))
                     .kerning(-1.0)
                     .foregroundStyle(
@@ -379,8 +379,8 @@ private struct PriceHero: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
-                Text("₸")
-                    .font(.system(size: 26, weight: .black, design: .rounded))
+                Text("тг")
+                    .font(.system(size: 20, weight: .black, design: .rounded))
                     .foregroundStyle(Color.savingsGreen.opacity(0.65))
 
                 Spacer(minLength: 0)
@@ -397,7 +397,7 @@ private struct PriceHero: View {
                         Text("обычно")
                             .font(.system(size: 11, weight: .heavy, design: .rounded))
                             .foregroundStyle(Color.appMuted)
-                        Text("\(formatted(range.avg)) ₸")
+                        Text(formatPriceTg(range.avg))
                             .font(.system(size: 11, weight: .heavy, design: .rounded))
                             .foregroundStyle(Color.appForeground.opacity(0.65))
                             .strikethrough(true, color: Color.appMuted.opacity(0.5))
@@ -413,7 +413,7 @@ private struct PriceHero: View {
                                 .font(.system(size: 9, weight: .black))
                             Text("экономия")
                                 .font(.system(size: 11, weight: .heavy, design: .rounded))
-                            Text("\(formatted(saving)) ₸")
+                            Text(formatPriceTg(saving))
                                 .font(.system(size: 11, weight: .black, design: .rounded))
                                 .monospacedDigit()
                         }
@@ -498,13 +498,6 @@ private struct PriceHero: View {
         .animation(.easeInOut(duration: 0.25), value: savingsPct)
     }
 
-    private func formatted(_ v: Double) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.groupingSeparator = " "
-        f.maximumFractionDigits = 0
-        return f.string(from: NSNumber(value: v)) ?? String(Int(v))
-    }
 }
 
 
@@ -583,12 +576,12 @@ private struct StorePricesSection: View {
 
                         VStack(alignment: .trailing, spacing: 2) {
                             if let prev = store.previousPrice, prev > store.price {
-                                Text("\(Int(prev)) ₸")
+                                Text(formatPriceTg(prev))
                                     .font(.system(size: 11, design: .rounded))
                                     .foregroundStyle(Color.appMuted)
                                     .strikethrough()
                             }
-                            Text("\(Int(store.price)) ₸")
+                            Text(formatPriceTg(store.price))
                                 .font(.system(size: 16, weight: isBest ? .black : .semibold, design: .rounded))
                                 .foregroundStyle(
                                     isBest
@@ -1054,8 +1047,18 @@ private struct PriceHistoryChart: View {
     }
 
     private func formatCompactPrice(_ v: Double) -> String {
-        if v >= 1000 { return "\(Int(v / 1000))k ₸" }
-        return "\(Int(v)) ₸"
+        let absVal = abs(v)
+        if absVal >= 10_000 {
+            let rounded = Int(v.rounded())
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            formatter.groupingSeparator = " "
+            formatter.maximumFractionDigits = 0
+            formatter.usesGroupingSeparator = true
+            let formatted = formatter.string(from: NSNumber(value: rounded)) ?? String(rounded)
+            return "\(formatted) тг"
+        }
+        return "\(Int(v.rounded())) тг"
     }
 
     private func daysWord(_ n: Int) -> String {
@@ -1066,13 +1069,6 @@ private struct PriceHistoryChart: View {
         return "дней"
     }
 
-    private func formatPrice(_ v: Double) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.groupingSeparator = " "
-        f.maximumFractionDigits = 0
-        return "\(f.string(from: NSNumber(value: v)) ?? String(Int(v))) ₸"
-    }
 }
 
 // MARK: - Expandable Description
@@ -1164,7 +1160,7 @@ private struct KPICell: View {
                 .font(.system(size: 8.5, weight: .black, design: .rounded))
                 .foregroundStyle(.white.opacity(muted ? 0.45 : 0.60))
                 .kerning(0.8)
-            Text(formatPrice(value))
+            Text(formatPriceTg(value))
                 .font(.system(size: 14, weight: .black, design: .rounded))
                 .foregroundStyle(
                     LinearGradient(
@@ -1192,13 +1188,6 @@ private struct KPICell: View {
         )
     }
 
-    private func formatPrice(_ v: Double) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.groupingSeparator = " "
-        f.maximumFractionDigits = 0
-        return "\(f.string(from: NSNumber(value: v)) ?? String(Int(v))) ₸"
-    }
 }
 
 private struct FlowLegend: View {

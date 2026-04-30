@@ -143,7 +143,7 @@
 		7D388D33F989913BBBC98026 /* SearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViewModel.swift; sourceTree = "<group>"; };
 		7D3F43D5A3826F8348C96342 /* StoreBasket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreBasket.swift; sourceTree = "<group>"; };
 		7D4BA2D81A04C0DEDBA7830F /* LaunchGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchGate.swift; sourceTree = "<group>"; };
-		7DE071A1AFA8A0B73124B822 /* MinPrice.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MinPrice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7DE071A1AFA8A0B73124B822 /* MinPrice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MinPrice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7F073ACEAC0D0E59168FEFA8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		827ABC4D0D3FBA84F8870B69 /* ProductCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductCard.swift; sourceTree = "<group>"; };
 		8293DFC24C427CC666A5EA2F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -158,7 +158,7 @@
 		A796266F72BB49B3E7475EE7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ABCE08E28A6C4D9A170EA857 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		B34F1223C99DD2ED8E232F43 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
-		B3AF38D1FB7BCB6FBF94881E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B3AF38D1FB7BCB6FBF94881E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B92E586BDF4B242F2DB230AA /* MinPrice.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MinPrice.entitlements; sourceTree = "<group>"; };
 		C5133C0E6F5DE25650C50AFF /* CartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartView.swift; sourceTree = "<group>"; };
 		C6FB20C026D574CDF89DDA54 /* CustomTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomTabBar.swift; sourceTree = "<group>"; };
@@ -686,7 +686,9 @@
 				);
 				SDKROOT = iphoneos;
 				SENTRY_DSN = "";
-				TARGETED_DEVICE_FAMILY = "1,2";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -821,7 +823,9 @@
 				);
 				SDKROOT = iphoneos;
 				SENTRY_DSN = "";
-				TARGETED_DEVICE_FAMILY = "1,2";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};

@@ -463,7 +463,7 @@ struct StoreBasketChart: View {
                     .font(.system(size: 10, weight: .black, design: .rounded))
                     .kerning(0.6)
                     .foregroundStyle(Color(red: 0.35, green: 0.85, blue: 0.55))
-                Text("Молоко: A=300₸, B=350₸, C=400₸. Минимум 300, максимум 400, разница 100₸. A получает 100 баллов, B — 50, C — 0. Магазин A в этом товаре выглядит идеально, B — посередине.")
+                Text("Молоко: A=300 тг, B=350 тг, C=400 тг. Минимум 300, максимум 400, разница 100 тг. A получает 100 баллов, B — 50, C — 0. Магазин A в этом товаре выглядит идеально, B — посередине.")
                     .font(.system(size: 10.5, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.65))
                     .fixedSize(horizontal: false, vertical: true)
@@ -686,10 +686,18 @@ struct StoreBasketChart: View {
     }
 
     private func formatCompactPrice(_ v: Double) -> String {
-        if v >= 1000 {
-            return "\(Int(v / 1000))k"
+        let intValue = Int(round(v))
+        let useGrouping = abs(intValue) >= 10_000
+        if useGrouping {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            formatter.groupingSeparator = " "
+            formatter.maximumFractionDigits = 0
+            formatter.usesGroupingSeparator = true
+            let formatted = formatter.string(from: NSNumber(value: intValue)) ?? String(intValue)
+            return "\(formatted) тг"
         }
-        return "\(Int(v))"
+        return "\(intValue) тг"
     }
 
     // MARK: Chart (bars)
@@ -1061,11 +1069,7 @@ private struct BasketColumn: View {
     }
 
     private func formatPrice(_ v: Double) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.groupingSeparator = " "
-        f.maximumFractionDigits = 0
-        return "\(f.string(from: NSNumber(value: v)) ?? String(Int(v))) ₸"
+        formatPriceTg(v)
     }
 }
 

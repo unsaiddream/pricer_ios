@@ -81,4 +81,67 @@ enum WidgetDataStore {
         ud?.set(total, forKey: "widget_cart_total")
         WidgetCenter.shared.reloadTimelines(ofKind: "kz.minprice.cart")
     }
+
+    /// Принудительный ресинк виджетов (на запуске приложения)
+    static func syncAll(favorites: [Product], cart: Cart?, cartItemsCount: Int) {
+        let mapped: [WidgetProductData] = favorites.prefix(6).map { p in
+            let rangeStores = p.priceRange?.stores ?? []
+            let searchStores = p.stores ?? []
+
+            let widgetStores: [WidgetStoreData]
+            if !rangeStores.isEmpty {
+                widgetStores = rangeStores
+                    .sorted { $0.price < $1.price }
+                    .prefix(5)
+                    .map { s in
+                        WidgetStoreData(name: s.chainName, price: s.price,
+                                        source: s.storeSource, slug: s.chainSlug, inStock: s.inStock)
+                    }
+            } else {
+                widgetStores = searchStores
+                    .sorted { $0.price < $1.price }
+                    .prefix(5)
+                    .map { s in
+                        WidgetStoreData(name: s.chainName, price: s.price,
+                                        source: s.storeSource, slug: s.chainSlug, inStock: s.inStock)
+                    }
+            }
+
+            let bestRange = rangeStores.min(by: { $0.price < $1.price })
+            let bestSearch = searchStores.min(by: { $0.price < $1.price })
+            let bestSource = bestRange?.storeSource ?? bestSearch?.storeSource
+            let bestSlug   = bestRange?.chainSlug   ?? bestSearch?.chainSlug
+            let prevPrice  = bestRange?.previousPrice ?? bestSearch?.previousPrice
+
+            return WidgetProductData(
+                id: p.uuid,
+                title: p.title,
+                brand: p.brand,
+                minPrice: p.cheapestPrice ?? p.minPrice ?? 0,
+                maxPrice: p.maxPrice ?? p.cheapestPrice ?? p.minPrice ?? 0,
+                prevMinPrice: prevPrice,
+                storeSource: bestSource,
+                storeSlug: bestSlug,
+                imageUrl: p.imageUrl,
+                stores: widgetStores
+            )
+        }
+
+        let ud = UserDefaults(suiteName: suiteName)
+        ud?.set(try? JSONEncoder().encode(mapped), forKey: "widget_favorites")
+
+        var total: Double = 0
+        if let items = cart?.items {
+            for item in items {
+                let unitPrice: Double = item.product.cheapestPrice ?? 0
+                total += unitPrice * Double(item.quantity)
+            }
+        }
+        ud?.set(cartItemsCount, forKey: "widget_cart_count")
+        ud?.set(total, forKey: "widget_cart_total")
+
+        WidgetCenter.shared.reloadTimelines(ofKind: "kz.minprice.favorites")
+        WidgetCenter.shared.reloadTimelines(ofKind: "kz.minprice.pricedrop")
+        WidgetCenter.shared.reloadTimelines(ofKind: "kz.minprice.cart")
+    }
 }

@@ -90,7 +90,7 @@ final class PriceAlertManager: NSObject {
                 await fireNotification(
                     uuid: detail.uuid,
                     title: "Цена упала на \(pct)%",
-                    body: "\(detail.title) — \(Int(newPrice)) ₸ (было \(Int(oldPrice)) ₸)"
+                    body: "\(detail.title) — \(formatPriceTg(newPrice)) (было \(formatPriceTg(oldPrice)))"
                 )
             }
 

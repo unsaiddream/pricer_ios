@@ -181,7 +181,7 @@ struct ProductShareCard: View {
                                     .foregroundStyle(savingsGreen.opacity(0.90))
                             }
                             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                                Text("\(formatPrice(best.price))")
+                                Text(formatPriceTg(best.price))
                                     .font(.system(size: 34, weight: .heavy, design: .rounded))
                                     .foregroundStyle(
                                         LinearGradient(
@@ -189,9 +189,6 @@ struct ProductShareCard: View {
                                             startPoint: .topLeading, endPoint: .bottomTrailing
                                         )
                                     )
-                                Text("₸")
-                                    .font(.system(size: 20, weight: .heavy, design: .rounded))
-                                    .foregroundStyle(savingsGreen.opacity(0.75))
                             }
                             .monospacedDigit()
                         }
@@ -281,7 +278,7 @@ struct ProductShareCard: View {
                                 }
                                 .frame(height: 8)
 
-                                Text(formatPrice(store.price) + " ₸")
+                                Text(formatPriceTg(store.price))
                                     .font(.system(size: 11, weight: isMin ? .black : .heavy, design: .rounded))
                                     .foregroundStyle(
                                         isMin
@@ -323,13 +320,6 @@ struct ProductShareCard: View {
         .frame(width: 360)
     }
 
-    private func formatPrice(_ v: Double) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.groupingSeparator = " "
-        f.maximumFractionDigits = 0
-        return f.string(from: NSNumber(value: v)) ?? String(Int(v))
-    }
 }
 
 // MARK: - Helpers

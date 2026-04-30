@@ -150,6 +150,14 @@ struct ContentView: View {
                 withAnimation(.easeInOut(duration: 0.22)) { selectedTab = tab }
             }
         }
+        .onAppear {
+            // Форс-ресинк виджетов на запуске, чтобы Cart/Discounts не зависали пустыми
+            WidgetDataStore.syncAll(
+                favorites: favoritesStore.favorites,
+                cart: cartStore.cart,
+                cartItemsCount: cartStore.itemsCount
+            )
+        }
     }
 
     private func handleBarcodeScan(_ barcode: String) async {
