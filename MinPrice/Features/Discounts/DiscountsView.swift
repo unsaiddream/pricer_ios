@@ -10,11 +10,12 @@ struct DiscountsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                // Переключатель режима
-                ModePicker(selected: $vm.mode)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 12)
-                    .padding(.bottom, 4)
+                // Заголовок — те же отступы, что и на остальных вкладках
+                BrandTitle(text: "Скидки")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 6)
 
                 if vm.isLoading && vm.products.isEmpty {
                     SkeletonCardGrid()
@@ -36,9 +37,9 @@ struct DiscountsView: View {
                             NavigationLink(value: product.uuid) {
                                 ProductCard(product: product) {
                                     Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
-                                }
+                                }.equatable()
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressScale)
                             .onAppear {
                                 if product.uuid == vm.products.last?.uuid {
                                     Task { await vm.load(cityId: cityStore.selectedCityId, append: true) }
@@ -46,7 +47,7 @@ struct DiscountsView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, 16)
                     .padding(.vertical, 8)
 
                     if vm.isLoading {
@@ -55,8 +56,9 @@ struct DiscountsView: View {
                 }
             }
             .background(Color.appBackground)
-            .navigationTitle("Скидки")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("")
+            .toolbarBackground(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { uuid in
                 ProductView(uuid: uuid)
             }
@@ -73,46 +75,3 @@ struct DiscountsView: View {
     }
 }
 
-// MARK: - Mode Picker
-
-private struct ModePicker: View {
-    @Binding var selected: DiscountsMode
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(DiscountsMode.allCases, id: \.self) { mode in
-                Button {
-                    HapticManager.selection()
-                    withAnimation(.easeInOut(duration: 0.2)) { selected = mode }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: mode.icon)
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(mode.rawValue)
-                            .font(.jb(12, weight: .semibold))
-                    }
-                    .foregroundStyle(selected == mode ? .white : Color.appMuted)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background {
-                        if selected == mode {
-                            Capsule().fill(modeColor(mode))
-                        } else {
-                            Capsule().fill(Color.appCard)
-                                .overlay(Capsule().stroke(Color.appBorder, lineWidth: 1))
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func modeColor(_ mode: DiscountsMode) -> Color {
-        switch mode {
-        case .discounts:     return Color.appPrimary
-        case .priceDrops:    return .green
-        case .priceIncreases: return Color(red: 0.9, green: 0.3, blue: 0.3)
-        }
-    }
-}

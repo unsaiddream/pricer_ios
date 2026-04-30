@@ -20,11 +20,11 @@ final class CityStore: ObservableObject {
         do {
             let response = try await APIClient.shared.fetch(CitiesResponse.self, path: Endpoint.cities())
             cities = response.cities
-            print("🏙️ cities: \(cities.map { "\($0.id)=\($0.name)" })")
+            Log.debug("🏙️ cities: \(cities.map { "\($0.id)=\($0.name)" })")
             // Auto-select first city if current selection is invalid
             if !cities.isEmpty && cities.first(where: { $0.id == selectedCityId }) == nil {
                 selectedCityId = cities[0].id
-                print("🏙️ auto-selected city: \(cities[0].name) id=\(cities[0].id)")
+                Log.debug("🏙️ auto-selected city: \(cities[0].name) id=\(cities[0].id)")
             }
         } catch {}
         isLoading = false

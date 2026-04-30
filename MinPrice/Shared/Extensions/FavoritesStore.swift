@@ -18,6 +18,10 @@ final class FavoritesStore: ObservableObject {
             HapticManager.impact(.light)
         }
         save()
+        CrashReporter.action(
+            adding ? "favorite_add" : "favorite_remove",
+            data: ["product_uuid": product.uuid, "total": favorites.count]
+        )
     }
 
     func isFavorited(_ uuid: String) -> Bool {
@@ -29,6 +33,7 @@ final class FavoritesStore: ObservableObject {
             UserDefaults.standard.set(data, forKey: key)
         }
         WidgetDataStore.syncFavorites(favorites)
+        PriceAlertManager.shared.seedPrices(from: favorites)
     }
 
     private func load() {
@@ -36,5 +41,6 @@ final class FavoritesStore: ObservableObject {
               let products = try? JSONDecoder().decode([Product].self, from: data) else { return }
         favorites = products
         WidgetDataStore.syncFavorites(favorites)
+        PriceAlertManager.shared.seedPrices(from: favorites)
     }
 }

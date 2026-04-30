@@ -1,6 +1,14 @@
 import Foundation
 import Combine
 
+enum SearchSort: String, CaseIterable, Identifiable {
+    case relevance = "Релевантность"
+    case priceLow  = "Дешевле"
+    case priceHigh = "Дороже"
+    case discount  = "Скидка"
+    var id: String { rawValue }
+}
+
 @MainActor
 final class SearchViewModel: ObservableObject {
     @Published var query = ""
@@ -8,7 +16,18 @@ final class SearchViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var page = 0
     @Published var hasMore = false
+    @Published var totalHits = 0
     @Published var recentSearches: [String] = []
+    @Published var sort: SearchSort = .relevance
+
+    var sortedResults: [Product] {
+        switch sort {
+        case .relevance: return results
+        case .priceLow:  return results.sorted { ($0.cheapestPrice ?? .infinity) < ($1.cheapestPrice ?? .infinity) }
+        case .priceHigh: return results.sorted { ($0.cheapestPrice ?? 0) > ($1.cheapestPrice ?? 0) }
+        case .discount:  return results.sorted { ($0.priceRange?.savingsPercent ?? 0) > ($1.priceRange?.savingsPercent ?? 0) }
+        }
+    }
 
     private let api = APIClient.shared
     private var searchTask: Task<Void, Never>?
@@ -17,9 +36,16 @@ final class SearchViewModel: ObservableObject {
 
     init() { loadRecent() }
 
+    func searchImmediate(cityId: Int) async {
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        searchTask?.cancel()
+        await performSearch(cityId: cityId, page: 0, append: false)
+    }
+
     func search(cityId: Int) async {
         guard query.count >= 2 else {
             results = []
+            totalHits = 0
             return
         }
 
@@ -27,7 +53,7 @@ final class SearchViewModel: ObservableObject {
         page = 0
 
         searchTask = Task {
-            try? await Task.sleep(nanoseconds: 300_000_000) // debounce 300ms
+            try? await Task.sleep(nanoseconds: 300_000_000)
             guard !Task.isCancelled else { return }
             await performSearch(cityId: cityId, page: 0, append: false)
         }
@@ -41,6 +67,11 @@ final class SearchViewModel: ObservableObject {
     func clearRecent() {
         recentSearches = []
         UserDefaults.standard.removeObject(forKey: recentKey)
+    }
+
+    func removeRecent(_ q: String) {
+        recentSearches.removeAll { $0 == q }
+        UserDefaults.standard.set(recentSearches, forKey: recentKey)
     }
 
     private func performSearch(cityId: Int, page: Int, append: Bool) async {
@@ -59,6 +90,7 @@ final class SearchViewModel: ObservableObject {
                 results += response.hits
             } else {
                 results = response.hits
+                totalHits = response.nbHits
             }
             self.page = response.page
             hasMore = response.page + 1 < response.nbPages

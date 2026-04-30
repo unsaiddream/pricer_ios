@@ -1,52 +1,92 @@
 import SwiftUI
 import Kingfisher
 
-// Логотип магазина: сначала пробуем URL из API, fallback — локальный ассет
+/// Логотип магазина. Идентификация по chain_slug, потому что Small/Galmart/Toimart
+/// имеют общий store_source = "wolt".
 struct StoreLogoView: View {
     let url: URL?
+    /// Slug сети (galmart/toimart/small/mgo/arbuz/airbafresh).
+    /// Приоритет над `source` — нужен чтобы различать Wolt-сети.
+    var slug: String? = nil
+    /// Старое поле — поддерживаем для обратной совместимости (если slug не передали,
+    /// fallback по source). Wolt без slug мапится на Small.
     let source: String?
     var size: CGFloat = 24
 
-    private var localAsset: String? {
-        switch source {
-        case "mgo":        return "store_magnum"
-        case "arbuz":      return "store_arbuz"
-        case "airbafresh": return "store_airba_fresh"
-        case "wolt":       return "store_small"
-        case "instashop":  return nil
+    /// Эффективный slug для маппинга ассетов и подложки.
+    private var effectiveSlug: String? {
+        if let s = slug?.lowercased() { return s }
+        switch source?.lowercased() {
+        case "mgo":        return "mgo"
+        case "arbuz":      return "arbuz"
+        case "airbafresh": return "airbafresh"
+        case "wolt":       return "small"   // legacy дефолт
+        case "small":      return "small"
         default:           return nil
         }
     }
 
+    private var localAsset: String? {
+        switch effectiveSlug {
+        case "mgo":        return "store_magnum"
+        case "arbuz":      return "store_arbuz"
+        case "airbafresh": return "store_airba_fresh"
+        case "small":      return "store_small"
+        // galmart/toimart — без локальных ассетов; рисуем chain_logo с бэка
+        default:           return nil
+        }
+    }
+
+    private var corner: CGFloat { size * 0.28 }
+
+    /// Прозрачные лого — нужна белая подложка, иначе на тёмном фоне их не видно.
+    private var needsWhiteBg: Bool {
+        switch effectiveSlug {
+        case "airbafresh", "small", "galmart", "toimart": return true
+        default: return false
+        }
+    }
+
     var body: some View {
-        Group {
-            if let url {
+        ZStack {
+            if needsWhiteBg {
+                Color.white
+            }
+            if let asset = localAsset, UIImage(named: asset) != nil {
+                if needsWhiteBg {
+                    Image(asset)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(size * 0.06)
+                } else {
+                    Image(asset)
+                        .resizable()
+                        .scaledToFill()
+                }
+            } else if let url {
+                // Galmart/Toimart и любые новые сети — лого приходит URL-ом с бэка.
                 KFImage(url)
-                    .placeholder { localFallback }
+                    .placeholder { letterContent }
+                    .downsampled(to: CGSize(width: size, height: size))
+                    .cancelOnDisappear(true)
                     .resizable()
                     .scaledToFit()
+                    .padding(needsWhiteBg ? size * 0.06 : 0)
             } else {
-                localFallback
+                letterContent
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.22))
+        .contentShape(Rectangle())
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
     }
 
-    @ViewBuilder
-    private var localFallback: some View {
-        if let asset = localAsset, UIImage(named: asset) != nil {
-            Image(asset)
-                .resizable()
-                .scaledToFit()
-        } else {
-            RoundedRectangle(cornerRadius: size * 0.22)
-                .fill(Color.appBorder)
-                .overlay(
-                    Text(source?.prefix(1).uppercased() ?? "?")
-                        .font(.system(size: size * 0.45, weight: .bold))
-                        .foregroundStyle(Color.appMuted)
-                )
+    private var letterContent: some View {
+        ZStack {
+            Color.appBorder
+            Text((effectiveSlug ?? source)?.prefix(1).uppercased() ?? "?")
+                .font(.system(size: size * 0.45, weight: .bold))
+                .foregroundStyle(Color.appMuted)
         }
     }
 }

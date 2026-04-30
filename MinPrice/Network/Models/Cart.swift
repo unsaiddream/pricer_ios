@@ -32,6 +32,7 @@ struct CartSummaryStoreItem: Codable {
     let storeId: Int?
     let storeName: String?
     let chainName: String?
+    let chainSlug: String?
     let chainLogo: String?
     let chainSource: String?
     private let _price: FlexibleDouble
@@ -46,7 +47,7 @@ struct CartSummaryStoreItem: Codable {
     var itemTotal: Double { _itemTotal.value ?? 0 }
 
     enum CodingKeys: String, CodingKey {
-        case product, quantity, storeId, storeName, chainName, chainLogo, chainSource
+        case product, quantity, storeId, storeName, chainName, chainSlug, chainLogo, chainSource
         case _price = "price"
         case _itemTotal = "itemTotal"
         case currency, url, extProductId, extProductTitle, extProductImage
@@ -58,6 +59,7 @@ struct CartGroupedStore: Codable, Identifiable {
     let storeId: Int
     let storeName: String
     let chainName: String
+    let chainSlug: String?
     let chainSource: String
     let chainLogo: String?
     let products: [CartSummaryStoreItem]
@@ -65,7 +67,7 @@ struct CartGroupedStore: Codable, Identifiable {
     var storeTotal: Double { _storeTotal.value ?? 0 }
 
     enum CodingKeys: String, CodingKey {
-        case storeId, storeName, chainName, chainSource, chainLogo, products
+        case storeId, storeName, chainName, chainSlug, chainSource, chainLogo, products
         case _storeTotal = "storeTotal"
     }
 }
@@ -98,6 +100,7 @@ struct SingleStoreTotal: Codable, Identifiable {
     let storeId: Int
     let storeName: String
     let chainName: String
+    let chainSlug: String?
     let chainSource: String
     let chainLogo: String?
     private let _totalPrice: FlexibleDouble
@@ -107,7 +110,7 @@ struct SingleStoreTotal: Codable, Identifiable {
     let products: [CartSummaryStoreItem]
 
     enum CodingKeys: String, CodingKey {
-        case storeId, storeName, chainName, chainSource, chainLogo
+        case storeId, storeName, chainName, chainSlug, chainSource, chainLogo
         case _totalPrice = "totalPrice"
         case availableCount, totalCount, products
     }
@@ -146,6 +149,7 @@ struct CartTransferItem: Encodable {
 
 struct CartTransferBody: Encodable {
     let chainSource: String
+    let chainSlug: String?  // нужен чтобы Wolt-deeplink знал какая сеть (Small/Galmart/Toimart)
     let items: [CartTransferItem]
     let cityId: Int
 }

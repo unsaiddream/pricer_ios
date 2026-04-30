@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Privacy manifest для приложения minprice.kz.
+        Требуется Apple для iOS 17+. Без него App Review отклоняет билд.
+
+        Текущий профиль:
+          - Гость-сессия (UUID в UserDefaults), не идентифицирует пользователя
+          - Не используется data-tracking (NSPrivacyTracking = false)
+          - Сетевые запросы на свой бэкенд minprice.kz
+          - Нет интеграций с tracking-SDK (Firebase Analytics, AppsFlyer и т.п.)
+    -->
+
+    <key>NSPrivacyTracking</key>
+    <false/>
+
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <!--
+        Какие категории данных собираем. У гостя — кэш предпочтений (избранное,
+        выбранный город) и UUID-сессия. Email/имени не запрашиваем.
+    -->
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array>
+        <dict>
+            <!-- Crash logs и performance data — если включим Sentry/Crashlytics -->
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeCrashData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypePerformanceData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+    </array>
+
+    <!--
+        Required Reasons API. Apple требует декларировать использование
+        чувствительных API даже для функциональных целей.
+    -->
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!-- UserDefaults: храним guest_uuid, isDarkMode, selected city -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string><!-- read/write to current app container -->
+            </array>
+        </dict>
+        <!-- File timestamp: Kingfisher disk cache mtime -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>C617.1</string><!-- own app data inspection -->
+                <string>DDA9.1</string><!-- display data to user -->
+            </array>
+        </dict>
+        <!-- Disk space: Kingfisher cache size limits -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>E174.1</string><!-- write/delete files in container -->
+            </array>
+        </dict>
+        <!-- System boot time: URLSession networking internal -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>35F9.1</string><!-- measure time in own app -->
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

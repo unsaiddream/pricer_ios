@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 final class APIClient {
     static let shared = APIClient()
@@ -7,11 +8,25 @@ final class APIClient {
     private let session: URLSession
     private let guestUUIDKey = "guest_uuid"
 
+    // Заголовки версии — отсылаются с каждым запросом, чтобы бэкенд мог
+    // адаптировать ответ под клиента (например, не отдавать новые типы товаров
+    // старым версиям, или включать experimental поля только для последней).
+    private let appVersion: String
+    private let buildNumber: String
+    private let osVersion: String
+    private let deviceModel: String
+
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 30
         session = URLSession(configuration: config)
+
+        let bundle = Bundle.main
+        appVersion = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
+        buildNumber = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        osVersion = UIDevice.current.systemVersion
+        deviceModel = UIDevice.current.model
     }
 
     // MARK: - Guest UUID
@@ -28,7 +43,7 @@ final class APIClient {
             let response = try await fetch(SessionResponse.self, path: "/session/init/")
             UserDefaults.standard.set(response.guestUuid, forKey: guestUUIDKey)
         } catch {
-            print("⚠️ Session init failed: \(error)")
+            Log.debug("⚠️ Session init failed: \(error)")
         }
     }
 
@@ -44,18 +59,25 @@ final class APIClient {
             req.setValue(uuid, forHTTPHeaderField: "X-Guest-UUID")
         }
         req.setValue("application/json", forHTTPHeaderField: "Accept")
+        // Версия и платформа — бэк может условно включать поля и адаптировать ответ
+        req.setValue(appVersion, forHTTPHeaderField: "X-App-Version")
+        req.setValue(buildNumber, forHTTPHeaderField: "X-App-Build")
+        req.setValue("ios", forHTTPHeaderField: "X-Platform")
+        req.setValue(osVersion, forHTTPHeaderField: "X-OS-Version")
+        req.setValue(deviceModel, forHTTPHeaderField: "X-Device-Model")
         return req
     }
 
     // MARK: - Fetch
 
-    func fetch<T: Decodable>(_ type: T.Type, path: String, queryItems: [URLQueryItem] = []) async throws -> T {
-        let req = request(path: path, queryItems: queryItems)
+    func fetch<T: Decodable>(_ type: T.Type, path: String, queryItems: [URLQueryItem] = [], timeout: TimeInterval? = nil) async throws -> T {
+        var req = request(path: path, queryItems: queryItems)
+        if let timeout { req.timeoutInterval = timeout }
         let (data, response) = try await session.data(for: req)
 
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            print("❌ HTTP \(code) for \(path)")
+            Log.debug("❌ HTTP \(code) for \(path)")
             throw APIError.httpError(statusCode: code)
         }
 
@@ -73,7 +95,7 @@ final class APIClient {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             let raw = String(data: data.prefix(500), encoding: .utf8) ?? "?"
-            print("❌ HTTP \(code) for POST \(path): \(raw)")
+            Log.debug("❌ HTTP \(code) for POST \(path): \(raw)")
             throw APIError.httpError(statusCode: code)
         }
     }
@@ -90,7 +112,7 @@ final class APIClient {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             let raw = String(data: data.prefix(500), encoding: .utf8) ?? "?"
-            print("❌ HTTP \(code) for POST \(path): \(raw)")
+            Log.debug("❌ HTTP \(code) for POST \(path): \(raw)")
             throw APIError.httpError(statusCode: code)
         }
 
@@ -104,8 +126,8 @@ final class APIClient {
             return try decoder.decode(T.self, from: data)
         } catch {
             let raw = String(data: data.prefix(3000), encoding: .utf8) ?? "?"
-            print("❌ Decode \(T.self): \(error)")
-            print("📄 JSON: \(raw)")
+            Log.debug("❌ Decode \(T.self): \(error)")
+            Log.debug("📄 JSON: \(raw)")
             throw error
         }
     }
