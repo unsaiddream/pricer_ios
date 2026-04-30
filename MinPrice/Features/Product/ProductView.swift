@@ -363,7 +363,7 @@ private struct PriceHero: View {
 
             // ── Hero price — большая, центральная ──
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(formatPriceTg(range.min))
+                Text(formatPriceNumber(range.min))
                     .font(.system(size: 52, weight: .black, design: .rounded))
                     .kerning(-1.0)
                     .foregroundStyle(

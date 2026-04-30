@@ -97,6 +97,7 @@ enum BasketViewMode: String, CaseIterable {
 struct StoreBasketColumn: Identifiable {
     let id = UUID()
     let source: String
+    let logoUrl: URL?
     let average: Double          // средняя цена товара в этом магазине
     let basketTotal: Double      // сумма цен по всем товарам пересечения
     let wins: Int                // сколько раз магазин был самым дешёвым
@@ -137,6 +138,7 @@ struct StoreBasketChart: View {
             return s.columns.map { col in
                 StoreBasketColumn(
                     source: col.slug,
+                    logoUrl: col.logoUrl.flatMap { URL(string: $0) },
                     average: col.average,
                     basketTotal: col.basketTotal,
                     wins: col.wins,
@@ -845,6 +847,7 @@ struct StoreBasketChart: View {
 
             return StoreBasketColumn(
                 source: src,
+                logoUrl: nil,
                 average: avg,
                 basketTotal: total,
                 wins: w,
@@ -1014,39 +1017,12 @@ private struct BasketColumn: View {
 
             // Нижняя плашка с лого + лейблом
             VStack(spacing: 4) {
-                Group {
-                    if let asset = basketStoreAsset(column.source), UIImage(named: asset) != nil {
-                        if basketLogoNeedsWhiteBg(column.source) {
-                            // AirbaFresh — прозрачный лого, нужна белая подложка
-                            ZStack {
-                                Color.white
-                                Image(asset)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .padding(2.5)
-                            }
-                        } else {
-                            // Magnum/Arbuz/SMALL — full-bleed
-                            Image(asset)
-                                .resizable()
-                                .scaledToFill()
-                        }
-                    } else {
-                        ZStack {
-                            Color.white
-                            Text(String(basketStoreLabel(column.source).prefix(1)))
-                                .font(.system(size: 14, weight: .black, design: .rounded))
-                                .foregroundStyle(basketChartColor(column.source))
-                        }
-                    }
-                }
-                .frame(width: 32, height: 32)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(.white.opacity(0.18), lineWidth: 0.5)
-                )
-                .opacity(column.hasData ? 1 : 0.45)
+                StoreLogoView(url: column.logoUrl, slug: column.source, source: column.source, size: 32)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 32 * 0.28, style: .continuous)
+                            .strokeBorder(.white.opacity(0.18), lineWidth: 0.5)
+                    )
+                    .opacity(column.hasData ? 1 : 0.45)
 
                 Text(basketStoreLabel(column.source))
                     .font(.system(size: 9.5, weight: .heavy, design: .rounded))
