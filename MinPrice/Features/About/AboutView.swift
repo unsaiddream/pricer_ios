@@ -38,11 +38,6 @@ struct AboutView: View {
                 // Правовые документы
                 Section("Документы") {
                     LinkRow(
-                        icon: "doc.text",
-                        title: "Пользовательское соглашение",
-                        url: "https://minprice.kz/terms/"
-                    )
-                    LinkRow(
                         icon: "hand.raised",
                         title: "Политика конфиденциальности",
                         url: "https://minprice.kz/privacy/"
@@ -50,7 +45,7 @@ struct AboutView: View {
                     LinkRow(
                         icon: "doc.plaintext",
                         title: "Публичная оферта",
-                        url: "https://minprice.kz/offer/"
+                        url: "https://minprice.kz/public-offer/"
                     )
                 }
                 .listRowBackground(Color.appCard)
