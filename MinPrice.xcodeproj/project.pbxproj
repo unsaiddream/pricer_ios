@@ -36,6 +36,7 @@
 		6E755952407D5B538FB63BBE /* MinPriceWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 118FABFD504FE88FA99272AA /* MinPriceWidgets.swift */; };
 		6E884B5D04180CCE5DCA3795 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9004411F7B69930112A43B07 /* NetworkMonitor.swift */; };
 		718D9A0F31B6AE5C78D0DD72 /* ProductCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 827ABC4D0D3FBA84F8870B69 /* ProductCard.swift */; };
+		4229EEFBD8784358B84573E7 /* ProductCardWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24FEEEC01E644985AB595F5B /* ProductCardWrapper.swift */; };
 		77477D8489986E02D41C7C22 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B3AF38D1FB7BCB6FBF94881E /* PrivacyInfo.xcprivacy */; };
 		7AFAE4AE6FCF2AFCB084E137 /* KFImage+Downsample.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9B6002CEC697E9B3EC3B261 /* KFImage+Downsample.swift */; };
 		7D070DF882FA0F1422857A19 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A796266F72BB49B3E7475EE7 /* Assets.xcassets */; };
@@ -148,6 +149,7 @@
 		7DE071A1AFA8A0B73124B822 /* MinPrice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MinPrice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7F073ACEAC0D0E59168FEFA8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		827ABC4D0D3FBA84F8870B69 /* ProductCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductCard.swift; sourceTree = "<group>"; };
+		24FEEEC01E644985AB595F5B /* ProductCardWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductCardWrapper.swift; sourceTree = "<group>"; };
 		8293DFC24C427CC666A5EA2F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9004411F7B69930112A43B07 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		917CF412BDA372FA13948ED8 /* ProductViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductViewModel.swift; sourceTree = "<group>"; };
@@ -212,6 +214,7 @@
 				1D6B4A8F72C9D242A79FB485 /* ErrorStateView.swift */,
 				C9B6002CEC697E9B3EC3B261 /* KFImage+Downsample.swift */,
 				827ABC4D0D3FBA84F8870B69 /* ProductCard.swift */,
+				24FEEEC01E644985AB595F5B /* ProductCardWrapper.swift */,
 				A01A5B2740EFD5959ACFC9E9 /* ProductRow.swift */,
 				9470D0691DC6771C78DE6029 /* ProductShareCard.swift */,
 				6F1AC7665CD25E362CC1B899 /* SkeletonView.swift */,
@@ -616,6 +619,7 @@
 				A546643FF9415593168AD165 /* PriceHistory.swift in Sources */,
 				65D3DADD8148D50A352B5452 /* Product.swift in Sources */,
 				718D9A0F31B6AE5C78D0DD72 /* ProductCard.swift in Sources */,
+				4229EEFBD8784358B84573E7 /* ProductCardWrapper.swift in Sources */,
 				CC0620BA77BFB4484A3A8277 /* ProductRow.swift in Sources */,
 				B5D747BCA58278CBDE38301E /* ProductShareCard.swift in Sources */,
 				A954B644C0C6F460BB53367F /* ProductView.swift in Sources */,

@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 enum CatalogSort: String, CaseIterable {
     case priceAsc  = "Дешевле"
@@ -9,27 +10,35 @@ enum CatalogSort: String, CaseIterable {
 @MainActor
 final class CatalogViewModel: ObservableObject {
     @Published var categories: [Category] = []
-    @Published var products: [Product] = []
+    @Published var products: [Product] = [] {
+        didSet { recomputeFiltered() }
+    }
     @Published var isLoading = false
     @Published var page = 1
     @Published var hasMore = false
-    @Published var sort: CatalogSort = .priceAsc
-    @Published var searchQuery: String = ""
+    @Published var sort: CatalogSort = .priceAsc {
+        didSet { recomputeFiltered() }
+    }
+    @Published var searchQuery: String = "" {
+        didSet { recomputeFiltered() }
+    }
+    // Кэш — пересчитывается только при изменении products/sort/searchQuery
+    @Published private(set) var filteredProducts: [Product] = []
 
     private let api = APIClient.shared
     private var currentCategory: Category?
 
-    var filteredProducts: [Product] {
+    private func recomputeFiltered() {
         let base = searchQuery.isEmpty ? products : products.filter {
             $0.title.localizedCaseInsensitiveContains(searchQuery)
         }
         switch sort {
         case .priceAsc:
-            return base.sorted { ($0.cheapestPrice ?? .infinity) < ($1.cheapestPrice ?? .infinity) }
+            filteredProducts = base.sorted { ($0.cheapestPrice ?? .infinity) < ($1.cheapestPrice ?? .infinity) }
         case .priceDesc:
-            return base.sorted { ($0.cheapestPrice ?? 0) > ($1.cheapestPrice ?? 0) }
+            filteredProducts = base.sorted { ($0.cheapestPrice ?? 0) > ($1.cheapestPrice ?? 0) }
         case .discount:
-            return base.sorted { discountPct($0) > discountPct($1) }
+            filteredProducts = base.sorted { discountPct($0) > discountPct($1) }
         }
     }
 
@@ -61,6 +70,7 @@ final class CatalogViewModel: ObservableObject {
 
     func selectCategory(_ category: Category, cityId: Int) async {
         currentCategory = category
+        filteredProducts = []
         products = []
         page = 1
         hasMore = false
@@ -99,8 +109,6 @@ final class CatalogViewModel: ObservableObject {
     }
 
     private func loadProductsFallback(category: Category, cityId: Int, append: Bool) async {
-        // /api/products/ — DRF, фильтр canonical_category_id (не canonical_category!)
-        // Пагинация 1-индексированная, у нас page стартует с 1 — нормально.
         let items = [
             URLQueryItem(name: "canonical_category_id", value: String(category.id)),
             URLQueryItem(name: "city_id", value: String(cityId)),

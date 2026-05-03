@@ -11,6 +11,7 @@ final class CartStore: ObservableObject {
     @Published var toastIsError: Bool = false
 
     private let api = APIClient.shared
+    private var toastTask: Task<Void, Never>?
 
     func loadActiveCart(cityId: Int) async {
         do {
@@ -109,10 +110,12 @@ final class CartStore: ObservableObject {
     }
 
     func showToast(_ message: String, isError: Bool = false) {
+        toastTask?.cancel()
         toastMessage = message
         toastIsError = isError
-        Task {
+        toastTask = Task {
             try? await Task.sleep(nanoseconds: 2_500_000_000)
+            guard !Task.isCancelled else { return }
             toastMessage = nil
         }
     }

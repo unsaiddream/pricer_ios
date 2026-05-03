@@ -44,6 +44,7 @@ struct ProductView: View {
 
                         KFImage(product.coverURL)
                             .placeholder { Rectangle().fill(Color.appCard) }
+                            .cancelOnDisappear(true)
                             .onSuccess { result in loadedProductImage = result.image }
                             .resizable()
                             .aspectRatio(contentMode: .fit)
@@ -748,9 +749,10 @@ private struct ChartPoint: Identifiable {
 private struct PriceHistoryChart: View {
     let history: PriceHistoryResponse
 
-    // Минимум за день по каждому магазину, отсортировано по дате —
-    // убирает зигзаги от нескольких замеров в сутки и нерегулярных интервалов.
-    private var dailyByStore: [(label: String, source: String, points: [ChartPoint])] {
+    // Кэш — пересчитывается один раз при появлении или смене history
+    @State private var dailyByStore: [(label: String, source: String, points: [ChartPoint])] = []
+
+    private static func buildDailyByStore(_ history: PriceHistoryResponse) -> [(label: String, source: String, points: [ChartPoint])] {
         let cal = Calendar.current
         return history.stores.map { store in
             let label = formatStoreName(store.chainSource)
@@ -916,6 +918,9 @@ private struct PriceHistoryChart: View {
                 FlowLegend(stores: visibleStores)
                     .padding(.top, 6)
             }
+        }
+        .task(id: history.stores.count) {
+            dailyByStore = Self.buildDailyByStore(history)
         }
         .padding(16)
         .background {
@@ -1375,14 +1380,7 @@ struct BrandProductsView: View {
                     LazyVGrid(columns: columns, spacing: 12) {
                         ForEach(vm.results) { product in
                             NavigationLink(value: product.uuid) {
-                                ProductCard(
-                                    product: product,
-                                    cartCount: cartStore.cart?.items.first(where: { $0.product.uuid == product.uuid })?.quantity ?? 0
-                                ) {
-                                    Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
-                                } onRemove: {
-                                    Task { await cartStore.quickDecrement(productUuid: product.uuid) }
-                                }.equatable()
+                                ProductCardWrapper(product: product)
                             }
                             .buttonStyle(.pressScale)
                             .onAppear {
