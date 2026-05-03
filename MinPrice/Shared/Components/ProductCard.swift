@@ -29,18 +29,33 @@ struct ProductCard: View, Equatable {
     private var slots: [StoreSlot] {
         // Prefer stores[] (list endpoints). Fall back to priceRange.stores (detail endpoint).
         if let s = product.stores, !s.isEmpty {
-            return Array(s.prefix(3)).map {
+            return deduplicatedSlots(s.map {
                 StoreSlot(id: $0.storeId, chainName: $0.chainName, storeSource: $0.storeSource,
                           logoURL: $0.logoURL, price: $0.price, previousPrice: $0.previousPrice, inStock: $0.inStock)
-            }
+            })
         }
         if let s = product.priceRange?.stores, !s.isEmpty {
-            return Array(s.prefix(3)).map {
+            return deduplicatedSlots(s.map {
                 StoreSlot(id: $0.chainId, chainName: $0.chainName, storeSource: $0.storeSource,
                           logoURL: $0.logoURL, price: $0.price, previousPrice: $0.previousPrice, inStock: $0.inStock)
-            }
+            })
         }
         return []
+    }
+
+    // Один магазин на сеть — берём самый дешёвый экземпляр.
+    // Убирает дубли Small/Galmart/Toimart когда у сети несколько точек в городе.
+    private func deduplicatedSlots(_ all: [StoreSlot]) -> [StoreSlot] {
+        var best: [String: StoreSlot] = [:]
+        for slot in all {
+            let key = slot.chainName.lowercased()
+            if let existing = best[key] {
+                if slot.price < existing.price { best[key] = slot }
+            } else {
+                best[key] = slot
+            }
+        }
+        return Array(best.values.sorted(by: { $0.price < $1.price }).prefix(3))
     }
 
     private var bestSlot: StoreSlot? {

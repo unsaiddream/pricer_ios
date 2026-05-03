@@ -48,6 +48,7 @@
 		8F80D5FD18E5698F974600F8 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E57051CFCC5B58C4AF0C838 /* HapticManager.swift */; };
 		8FE0B14F7A167A7C1BF25A93 /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 208CB6C4A8A0BDB5B57766EB /* WidgetDataStore.swift */; };
 		9640D66AE22F6CB67663E9A5 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27BCDF263E872244D5C0B0F /* HomeView.swift */; };
+		D3CE95DD934443B0B8B1E557 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2AE7172B371499EA963667A /* AboutView.swift */; };
 		985B6D08E2EB744A671ADA75 /* Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC68D1D6B4978D5A32A032B /* Endpoints.swift */; };
 		A546643FF9415593168AD165 /* PriceHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0664053E47B3A03CC344B4DB /* PriceHistory.swift */; };
 		A629F448451D6FB187940947 /* HexColorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F28948CE6D6D1E068EE3B97C /* HexColorTests.swift */; };
@@ -170,6 +171,7 @@
 		C9B6002CEC697E9B3EC3B261 /* KFImage+Downsample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KFImage+Downsample.swift"; sourceTree = "<group>"; };
 		CD37198C751CEDA4BAB87F6F /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		D27BCDF263E872244D5C0B0F /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		B2AE7172B371499EA963667A /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		D854ADCB862D5BF09AFC58F5 /* BrandProductsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandProductsView.swift; sourceTree = "<group>"; };
 		DD98E6933F38CF02C3111DA6 /* ProductView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductView.swift; sourceTree = "<group>"; };
 		DF2B9612B2F1B73E1F4C0B66 /* MinPriceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinPriceTests.swift; sourceTree = "<group>"; };
@@ -287,9 +289,18 @@
 			path = Product;
 			sourceTree = "<group>";
 		};
+		F3A66ED47B2442F9ADDF8279 /* About */ = {
+			isa = PBXGroup;
+			children = (
+				B2AE7172B371499EA963667A /* AboutView.swift */,
+			);
+			path = About;
+			sourceTree = "<group>";
+		};
 		4E4851CD894F1A27947FA814 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				F3A66ED47B2442F9ADDF8279 /* About */,
 				D4CD4E8432E84E958E2D7E62 /* Cart */,
 				232784C8777321EBDA50AA93 /* Catalog */,
 				6BD9FF22168D59C1D818331E /* Discounts */,
@@ -607,6 +618,7 @@
 				492DE4011EF2FD4B69AF2C08 /* Font+JetBrains.swift in Sources */,
 				8F80D5FD18E5698F974600F8 /* HapticManager.swift in Sources */,
 				9640D66AE22F6CB67663E9A5 /* HomeView.swift in Sources */,
+				D3CE95DD934443B0B8B1E557 /* AboutView.swift in Sources */,
 				D69F2284389B360B567F8715 /* HomeViewModel.swift in Sources */,
 				7AFAE4AE6FCF2AFCB084E137 /* KFImage+Downsample.swift in Sources */,
 				46C0F6C628FDB4555DBC08B5 /* LaunchGate.swift in Sources */,

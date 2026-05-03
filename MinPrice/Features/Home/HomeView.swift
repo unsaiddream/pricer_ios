@@ -7,6 +7,7 @@ struct HomeView: View {
     @EnvironmentObject var cartStore: CartStore
     @StateObject private var vm = HomeViewModel()
     @State private var showCitySelector = false
+    @State private var showAbout = false
     @AppStorage("isDarkMode") private var isDarkMode = false
     @AppStorage("homeAnalyticsExpanded") private var analyticsExpanded = false
 
@@ -139,14 +140,23 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { isDarkMode.toggle() }
-                    } label: {
-                        Image(systemName: isDarkMode ? "sun.max.fill" : "moon.fill")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(isDarkMode ? Color.appPrimary : Color.appMuted)
-                            .frame(width: 32, height: 32)
-                            .background(.ultraThinMaterial, in: Circle())
+                    HStack(spacing: 8) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { isDarkMode.toggle() }
+                        } label: {
+                            Image(systemName: isDarkMode ? "sun.max.fill" : "moon.fill")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(isDarkMode ? Color.appPrimary : Color.appMuted)
+                                .frame(width: 32, height: 32)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        Button { showAbout = true } label: {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.appMuted)
+                                .frame(width: 32, height: 32)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
                     }
                 }
                 ToolbarItem(placement: .principal) {
@@ -177,6 +187,9 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showCitySelector) {
                 CitySelectorSheet(isPresented: $showCitySelector)
+            }
+            .sheet(isPresented: $showAbout) {
+                AboutView()
             }
             .navigationDestination(for: String.self) { uuid in
                 ProductView(uuid: uuid)
