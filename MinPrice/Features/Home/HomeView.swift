@@ -33,7 +33,7 @@ struct HomeView: View {
                                         .foregroundStyle(Color.appPrimary)
                                     Text("Аналитика цен")
                                         .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(Color.appSecondary)
+                                        .foregroundStyle(Color.appMuted)
                                     Spacer()
                                     Image(systemName: analyticsExpanded ? "chevron.up" : "chevron.down")
                                         .font(.system(size: 12, weight: .semibold))
