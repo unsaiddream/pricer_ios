@@ -74,6 +74,40 @@ final class CartStore: ObservableObject {
         }
     }
 
+    func quickDecrement(productUuid: String) async {
+        guard let cartUuid = cart?.uuid else { return }
+        let currentQty = cart?.items.first(where: { $0.product.uuid == productUuid })?.quantity ?? 0
+        guard currentQty > 0 else { return }
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        do {
+            if currentQty <= 1 {
+                let body = RemoveItemBody(productUuid: productUuid)
+                var req = api.request(path: Endpoint.cartRemoveItem(cartUuid))
+                req.httpMethod = "POST"
+                req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                req.httpBody = try encoder.encode(body)
+                _ = try await URLSession.shared.data(for: req)
+            } else {
+                let body = UpdateQuantityBody(productUuid: productUuid, quantity: currentQty - 1)
+                var req = api.request(path: Endpoint.cartUpdateQuantity(cartUuid))
+                req.httpMethod = "POST"
+                req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                req.httpBody = try encoder.encode(body)
+                _ = try await URLSession.shared.data(for: req)
+            }
+            cart = try? await api.fetch(Cart.self, path: Endpoint.cart(cartUuid))
+            itemsCount = cart?.itemsCount ?? max(0, itemsCount - 1)
+            refreshCount += 1
+            syncWidget()
+            updateBadge()
+            HapticManager.success()
+        } catch {
+            HapticManager.error()
+            showToast("Не удалось изменить", isError: true)
+        }
+    }
+
     func showToast(_ message: String, isError: Bool = false) {
         toastMessage = message
         toastIsError = isError

@@ -35,8 +35,13 @@ struct DiscountsView: View {
                     LazyVGrid(columns: gridColumns, spacing: 10) {
                         ForEach(vm.products) { product in
                             NavigationLink(value: product.uuid) {
-                                ProductCard(product: product) {
+                                ProductCard(
+                                    product: product,
+                                    cartCount: cartStore.cart?.items.first(where: { $0.product.uuid == product.uuid })?.quantity ?? 0
+                                ) {
                                     Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
+                                } onRemove: {
+                                    Task { await cartStore.quickDecrement(productUuid: product.uuid) }
                                 }.equatable()
                             }
                             .buttonStyle(.pressScale)

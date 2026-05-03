@@ -14,16 +14,16 @@ private struct StoreSlot {
 
 struct ProductCard: View, Equatable {
     let product: Product
+    var cartCount: Int = 0
     var onAdd: (() -> Void)? = nil
+    var onRemove: (() -> Void)? = nil
 
-    // Equatable — SwiftUI пропускает re-render когда uuid и цена не изменились.
-    // Без этого карточка пересобиралась на любой @Published из EnvironmentObject
-    // (toastMessage, refreshCount, favourites…), что давало стуттеры на скролле.
     static func == (lhs: ProductCard, rhs: ProductCard) -> Bool {
         lhs.product.uuid == rhs.product.uuid &&
         lhs.product.cheapestPrice == rhs.product.cheapestPrice &&
         lhs.product.priceRange?.min == rhs.product.priceRange?.min &&
-        lhs.product.stores?.count == rhs.product.stores?.count
+        lhs.product.stores?.count == rhs.product.stores?.count &&
+        lhs.cartCount == rhs.cartCount
     }
 
     private var slots: [StoreSlot] {
@@ -138,23 +138,45 @@ struct ProductCard: View, Equatable {
                 .frame(height: 64)
                 .padding(.horizontal, 8)
 
-            // Cart button — shows price, not generic text
-            Button(action: { onAdd?() }) {
-                HStack(spacing: 5) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
-                    if let price = displayPrice {
-                        Text(formatPriceTg(price))
-                            .font(.system(size: 13, weight: .semibold))
-                    } else {
-                        Text("В корзину")
-                            .font(.system(size: 13, weight: .semibold))
+            // Cart button / stepper
+            if cartCount > 0 {
+                HStack(spacing: 0) {
+                    Button(action: { onRemove?() }) {
+                        Image(systemName: "minus")
+                            .font(.system(size: 13, weight: .bold))
+                            .frame(width: 44, height: 38)
+                    }
+                    Text("\(cartCount)")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .frame(maxWidth: .infinity)
+                    Button(action: { onAdd?() }) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .bold))
+                            .frame(width: 44, height: 38)
                     }
                 }
                 .foregroundStyle(Color.appPrimary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 38)
-                .background(Color.appPrimary.opacity(0.08))
+                .background(Color.appPrimary.opacity(0.12))
+            } else {
+                Button(action: { onAdd?() }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                        if let price = displayPrice {
+                            Text(formatPriceTg(price))
+                                .font(.system(size: 13, weight: .semibold))
+                        } else {
+                            Text("В корзину")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                    }
+                    .foregroundStyle(Color.appPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .background(Color.appPrimary.opacity(0.08))
+                }
             }
         }
         .background(Color.appCard)

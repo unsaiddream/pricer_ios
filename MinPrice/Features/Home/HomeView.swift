@@ -8,6 +8,7 @@ struct HomeView: View {
     @StateObject private var vm = HomeViewModel()
     @State private var showCitySelector = false
     @AppStorage("isDarkMode") private var isDarkMode = false
+    @AppStorage("homeAnalyticsExpanded") private var analyticsExpanded = false
 
     var body: some View {
         NavigationStack {
@@ -23,14 +24,38 @@ struct HomeView: View {
                     // с products[] и клиентским precompute.
                     if (vm.basketSummary != nil || !vm.basketProducts.isEmpty),
                        ConfigSnapshot.isEnabled(.storeBasketChart) {
-                        StoreBasketChart(
-                            category: vm.basketCategory,
-                            summary: vm.basketSummary,
-                            products: vm.basketProducts
-                        )
-                        .padding(.horizontal, 16)
+                        VStack(spacing: 0) {
+                            // Заголовок-тоглер
+                            Button(action: { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { analyticsExpanded.toggle() } }) {
+                                HStack {
+                                    Image(systemName: "chart.bar.xaxis")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Color.appPrimary)
+                                    Text("Аналитика цен")
+                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(Color.appSecondary)
+                                    Spacer()
+                                    Image(systemName: analyticsExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(Color.appMuted)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                            }
+                            .buttonStyle(.plain)
+
+                            if analyticsExpanded {
+                                StoreBasketChart(
+                                    category: vm.basketCategory,
+                                    summary: vm.basketSummary,
+                                    products: vm.basketProducts
+                                )
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 12)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
+                        }
                         .padding(.top, 8)
-                        .padding(.bottom, 12)
                     }
 
                     if vm.isLoading {
@@ -74,8 +99,13 @@ struct HomeView: View {
                             LazyVGrid(columns: gridColumns, spacing: 10) {
                                 ForEach(vm.bestDeals) { product in
                                     NavigationLink(value: product.uuid) {
-                                        ProductCard(product: product) {
+                                        ProductCard(
+                                            product: product,
+                                            cartCount: cartStore.cart?.items.first(where: { $0.product.uuid == product.uuid })?.quantity ?? 0
+                                        ) {
                                             Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
+                                        } onRemove: {
+                                            Task { await cartStore.quickDecrement(productUuid: product.uuid) }
                                         }.equatable()
                                     }
                                     .buttonStyle(.pressScale)
@@ -93,8 +123,13 @@ struct HomeView: View {
                             LazyVGrid(columns: gridColumns, spacing: 10) {
                                 ForEach(vm.priceDrops) { product in
                                     NavigationLink(value: product.uuid) {
-                                        ProductCard(product: product) {
+                                        ProductCard(
+                                            product: product,
+                                            cartCount: cartStore.cart?.items.first(where: { $0.product.uuid == product.uuid })?.quantity ?? 0
+                                        ) {
                                             Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
+                                        } onRemove: {
+                                            Task { await cartStore.quickDecrement(productUuid: product.uuid) }
                                         }.equatable()
                                     }
                                     .buttonStyle(.pressScale)
