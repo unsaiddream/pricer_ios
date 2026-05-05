@@ -11,6 +11,7 @@ final class PriceAlertManager: NSObject {
     private let lastCheckKey = "price_alert_last_check"
     private let favoritesKey = "favorites_v1"
     private let cityKey = "minprice_city_id"
+    private let thresholdKey = "price_alert_threshold_pct"
 
     // MARK: - State
 
@@ -18,6 +19,19 @@ final class PriceAlertManager: NSObject {
         get { UserDefaults.standard.bool(forKey: enabledKey) }
         set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
     }
+
+    /// Минимальный процент снижения для отправки уведомления.
+    /// Default 5% — иначе шумит на каждом копеечном тике.
+    /// Настраивается пользователем (см. AlertThresholdPicker в Favorites).
+    var thresholdPercent: Int {
+        get {
+            let v = UserDefaults.standard.integer(forKey: thresholdKey)
+            return v > 0 ? v : 5
+        }
+        set { UserDefaults.standard.set(newValue, forKey: thresholdKey) }
+    }
+
+    static let availableThresholds: [Int] = [3, 5, 10, 15, 20, 30]
 
     private var storedPrices: [String: Double] {
         get { UserDefaults.standard.dictionary(forKey: pricesKey) as? [String: Double] ?? [:] }
@@ -77,6 +91,7 @@ final class PriceAlertManager: NSObject {
     func performCheck(favorites: [Product], cityId: Int) async {
         guard isEnabled else { return }
         var updated = storedPrices
+        let threshold = Double(thresholdPercent)
 
         for product in favorites {
             guard let detail = try? await APIClient.shared.fetch(
@@ -85,13 +100,18 @@ final class PriceAlertManager: NSObject {
                 queryItems: [URLQueryItem(name: "city_id", value: String(cityId))]
             ), let newPrice = detail.cheapestPrice else { continue }
 
-            if let oldPrice = updated[product.uuid], newPrice < oldPrice - 0.5 {
-                let pct = max(1, Int((oldPrice - newPrice) / oldPrice * 100))
-                await fireNotification(
-                    uuid: detail.uuid,
-                    title: "Цена упала на \(pct)%",
-                    body: "\(detail.title) — \(formatPriceTg(newPrice)) (было \(formatPriceTg(oldPrice)))"
-                )
+            if let oldPrice = updated[product.uuid], newPrice < oldPrice {
+                let pct = (oldPrice - newPrice) / oldPrice * 100
+                // Только если падение >= порога. Иначе тихо обновляем baseline,
+                // не шумим уведомлениями на копеечные движения.
+                if pct >= threshold {
+                    let pctInt = max(1, Int(pct))
+                    await fireNotification(
+                        uuid: detail.uuid,
+                        title: "Цена упала на \(pctInt)%",
+                        body: "\(detail.title) — \(formatPriceTg(newPrice)) (было \(formatPriceTg(oldPrice)))"
+                    )
+                }
             }
 
             updated[product.uuid] = newPrice

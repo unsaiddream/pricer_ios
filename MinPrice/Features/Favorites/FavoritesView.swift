@@ -31,7 +31,9 @@ struct FavoritesView: View {
 
     @StateObject private var vm = FavoritesViewModel()
     @AppStorage("price_alerts_enabled") private var alertsEnabled = false
+    @AppStorage("price_alert_threshold_pct") private var alertThreshold = 5
     @State private var showPermissionDenied = false
+    @State private var showThresholdPicker = false
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -100,6 +102,21 @@ struct FavoritesView: View {
                                 }
                             }
                             Spacer()
+                            // Если алерты включены — рядом с колокольчиком
+                            // показываем выбранный порог (тапается → picker).
+                            if alertsEnabled {
+                                Button {
+                                    showThresholdPicker = true
+                                } label: {
+                                    Text("−\(alertThreshold)%")
+                                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                        .foregroundStyle(Color.appPrimary)
+                                        .padding(.horizontal, 10).padding(.vertical, 6)
+                                        .background(Color.appPrimary.opacity(0.12), in: Capsule())
+                                        .overlay(Capsule().stroke(Color.appPrimary.opacity(0.25), lineWidth: 0.6))
+                                }
+                                .buttonStyle(.plain)
+                            }
                             Button {
                                 Task { await toggleAlerts() }
                             } label: {
@@ -175,6 +192,11 @@ struct FavoritesView: View {
                 Button("Отмена", role: .cancel) {}
             } message: {
                 Text("Разрешите уведомления в Настройки → minprice, чтобы получать оповещения о снижении цен.")
+            }
+            .sheet(isPresented: $showThresholdPicker) {
+                AlertThresholdPicker(threshold: $alertThreshold)
+                    .presentationDetents([.height(360)])
+                    .presentationDragIndicator(.visible)
             }
         }
     }

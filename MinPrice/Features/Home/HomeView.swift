@@ -380,16 +380,14 @@ private struct FlameBadge: View {
             // Тёплое свечение под пламенем — эффект тепла
             Image(systemName: "flame.fill")
                 .symbolRenderingMode(.monochrome)
-                .font(.system(size: 38))
+                .font(.system(size: 32))
                 .foregroundStyle(accent.opacity(0.4))
-                .blur(radius: 8)
+                .blur(radius: 7)
 
-            // Сам огонёк — fully solid, без внутренних cutout'ов SF Symbol'а.
-            // .monochrome убирает hierarchical-слои (там был "внутренний" темнее
-            // overlay), и градиент идёт по ВСЕЙ силуэт-форме пламени без дыр.
+            // Сам огонёк
             Image(systemName: "flame.fill")
                 .symbolRenderingMode(.monochrome)
-                .font(.system(size: 32))
+                .font(.system(size: 26))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [Color.orange, accent, Color.discountRedDeep],
@@ -400,12 +398,12 @@ private struct FlameBadge: View {
 
             // Число белое, в нижней (широкой) части пламени
             Text("\(count)")
-                .font(.system(size: 11, weight: .black, design: .rounded))
+                .font(.system(size: 9, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 0.5)
-                .offset(y: 4)
+                .offset(y: 3)
         }
-        .frame(width: 36, height: 38)
+        .frame(width: 30, height: 30)
         .onAppear {
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
                 flicker.toggle()
