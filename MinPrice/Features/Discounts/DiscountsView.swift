@@ -38,15 +38,21 @@ struct DiscountsView: View {
                                 ProductCardWrapper(product: product)
                             }
                             .buttonStyle(.pressScale)
-                            .onAppear {
-                                if product.uuid == vm.products.last?.uuid {
-                                    Task { await vm.load(cityId: cityStore.selectedCityId, append: true) }
-                                }
-                            }
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
+
+                    // Sentinel — отдельный view внизу списка. Он получает .onAppear
+                    // только когда виден, причём ровно один. Это надёжнее чем вешать
+                    // onAppear на каждую карточку (та фигачит на каждом recycle).
+                    if !vm.products.isEmpty {
+                        Color.clear
+                            .frame(height: 1)
+                            .onAppear {
+                                Task { await vm.load(cityId: cityStore.selectedCityId, append: true) }
+                            }
+                    }
 
                     if vm.isLoading {
                         ProgressView().tint(Color.appPrimary).padding()

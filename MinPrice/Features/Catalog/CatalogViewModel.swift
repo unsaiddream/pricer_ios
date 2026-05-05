@@ -69,13 +69,16 @@ final class CatalogViewModel: ObservableObject {
     }
 
     func selectCategory(_ category: Category, cityId: Int) async {
+        // Если уже выбрана эта же категория — не сбрасываем state (защита от
+        // повторного входа через NavigationLink, чтобы не было thrash'а грида).
+        if currentCategory?.id == category.id, !products.isEmpty { return }
         currentCategory = category
-        filteredProducts = []
-        products = []
         page = 1
         hasMore = false
         searchQuery = ""
         sort = .priceAsc
+        // products очищается атомарно в mergeProducts(append: false) после ответа.
+        // Не делаем products = [] здесь, иначе LazyVGrid дёргается на transition.
         await loadProducts(category: category, cityId: cityId, append: false)
     }
 

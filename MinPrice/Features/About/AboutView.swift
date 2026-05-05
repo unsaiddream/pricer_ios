@@ -69,11 +69,16 @@ struct AboutView: View {
                     .scaleEffect(heroAppeared ? 1.0 : 0.5)
                     .opacity(heroAppeared ? 1 : 0)
 
-                Image("AppIcon-1024")
+                Image("AppLogo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 92, height: 92)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .frame(width: 100, height: 100)
+                    .padding(8)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.appPrimary.opacity(0.20), lineWidth: 1)
+                    )
                     .shadow(color: Color.appPrimary.opacity(0.30), radius: 18, x: 0, y: 8)
                     .scaleEffect(heroAppeared ? 1.0 : 0.85)
             }

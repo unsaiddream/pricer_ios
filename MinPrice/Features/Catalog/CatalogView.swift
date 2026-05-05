@@ -382,15 +382,19 @@ private struct CatalogProductsView: View {
                                 ProductCardWrapper(product: product)
                             }
                             .buttonStyle(.pressScale)
-                            .onAppear {
-                                if product.uuid == vm.products.last?.uuid {
-                                    Task { await vm.loadMore(cityId: cityStore.selectedCityId) }
-                                }
-                            }
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 10)
+
+                    // Sentinel-триггер пагинации — один view внизу, не на каждой карточке.
+                    if !vm.filteredProducts.isEmpty && vm.searchQuery.isEmpty {
+                        Color.clear
+                            .frame(height: 1)
+                            .onAppear {
+                                Task { await vm.loadMore(cityId: cityStore.selectedCityId) }
+                            }
+                    }
 
                     if vm.isLoading {
                         ProgressView()

@@ -11,6 +11,7 @@ final class DiscountsViewModel: ObservableObject {
 
     func load(cityId: Int, append: Bool = false) async {
         if append && isLoading { return }
+        if append && !hasMore { return }   // не дочитываем после конца
         isLoading = true
 
         let items = [
@@ -38,9 +39,11 @@ final class DiscountsViewModel: ObservableObject {
     }
 
     func refresh(cityId: Int) async {
+        // Не очищаем products[] до получения свежих — иначе LazyVGrid рушится
+        // в transition (items disappear → reappear), особенно когда параллельно
+        // фоновый loadMore по .onAppear пытается дочитать пагинацию.
         page = 1
         hasMore = false
-        products = []
         await load(cityId: cityId, append: false)
     }
 }

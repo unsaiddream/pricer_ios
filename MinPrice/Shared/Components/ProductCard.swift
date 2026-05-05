@@ -153,12 +153,11 @@ struct ProductCard: View, Equatable {
             .padding(.top, 8)
             .padding(.bottom, 6)
 
-            // Store comparison list — вертикальный (1 строка на сеть)
+            // Store comparison grid — 3 колонки горизонтально, как было раньше
             Divider().overlay(Color.appBorder)
-            StoreList(slots: slots, bestId: bestSlot?.id, linkedCount: product.linkedStoresCount)
-                .padding(.horizontal, 10)
-                .padding(.top, 6)
-                .padding(.bottom, 6)
+            StoreGrid(slots: slots, bestId: bestSlot?.id, linkedCount: product.linkedStoresCount)
+                .frame(height: 64)
+                .padding(.horizontal, 8)
 
             // Cart button / stepper
             if cartCount > 0 {
@@ -209,73 +208,67 @@ struct ProductCard: View, Equatable {
     }
 }
 
-// MARK: - Vertical store comparison list (icon + price + MIN badge)
-// Высота фиксированная (3 слота) — иначе LazyVGrid перерасчитывает высоту
-// карточек на скролле и стабильно крашится при reuse.
+// MARK: - 3-column store comparison grid (horizontal, как было)
+// Всегда 3 слота для стабильной высоты карточки в LazyVGrid (пустые невидимые).
 
-private struct StoreList: View {
+private struct StoreGrid: View {
     let slots: [StoreSlot]
     let bestId: Int?
     let linkedCount: Int?
 
-    private static let visibleRows = 3
-    private static let rowHeight: CGFloat = 18
-    private static let rowSpacing: CGFloat = 4
+    private static let columns = 3
 
     var body: some View {
-        VStack(spacing: Self.rowSpacing) {
-            ForEach(0..<Self.visibleRows, id: \.self) { i in
-                if i < slots.count {
-                    storeRow(slots[i])
-                } else {
-                    // Пустая строка — занимает место, но не рисует ничего.
-                    // Нужна чтобы высота карточек была одинаковой при разном числе магазинов.
-                    Color.clear.frame(height: Self.rowHeight)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .overlay(alignment: .top) {
-            // Если магазинов нет вообще, поверх показываем сколько вообще есть.
-            if slots.isEmpty, let count = linkedCount, count > 0 {
-                HStack(spacing: 5) {
+        if slots.isEmpty {
+            HStack(spacing: 5) {
+                if let count = linkedCount, count > 0 {
                     Image(systemName: "storefront")
                         .font(.system(size: 11))
+                        .foregroundStyle(Color.appMuted)
                     Text("\(count) \(storesWord(count))")
                         .font(.system(size: 11))
+                        .foregroundStyle(Color.appMuted)
                 }
-                .foregroundStyle(Color.appMuted)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 6)
+                Spacer()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            HStack(alignment: .center, spacing: 0) {
+                ForEach(0..<Self.columns, id: \.self) { i in
+                    if i < slots.count {
+                        storeColumn(slots[i])
+                    } else {
+                        // Пустая колонка — занимает место, держит высоту карточки одинаковой.
+                        Color.clear.frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
     @ViewBuilder
-    private func storeRow(_ slot: StoreSlot) -> some View {
+    private func storeColumn(_ slot: StoreSlot) -> some View {
         let isBest = slot.id == bestId
-        // Центрированный layout — иконка + (опционально MIN) + цена справа в фикс ширине,
-        // всё прижато к центру. Без размашистого Spacer'а, чтобы не было "пустых полей".
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-            StoreLogoView(url: slot.logoURL, slug: slot.chainSlug, source: slot.storeSource, size: 16)
+        VStack(spacing: 3) {
+            StoreLogoView(url: slot.logoURL, slug: slot.chainSlug, source: slot.storeSource, size: 22)
                 .opacity(slot.inStock ? 1.0 : 0.4)
-            if isBest {
-                Text("MIN")
-                    .font(.system(size: 8, weight: .black))
-                    .foregroundStyle(Color.appPrimary)
-                    .padding(.horizontal, 4).padding(.vertical, 1)
-                    .background(Color.appPrimary.opacity(0.14), in: RoundedRectangle(cornerRadius: 3))
-            }
             Text(formatPriceTg(slot.price))
-                .font(.system(size: 12, weight: isBest ? .bold : .medium, design: .rounded))
+                .font(.system(size: 10, weight: isBest ? .bold : .regular))
                 .foregroundStyle(isBest ? Color.appPrimary : Color.appMuted)
                 .lineLimit(1)
-                .minimumScaleFactor(0.85)
-                .frame(minWidth: 56, alignment: .trailing)
-            Spacer(minLength: 0)
+                .minimumScaleFactor(0.8)
+            if isBest {
+                Text("MIN")
+                    .font(.system(size: 7, weight: .black))
+                    .foregroundStyle(Color.appPrimary)
+                    .padding(.horizontal, 4).padding(.vertical, 1)
+                    .background(Color.appPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+            } else {
+                Color.clear.frame(height: 13)
+            }
         }
-        .frame(height: Self.rowHeight)
+        .frame(maxWidth: .infinity)
     }
 }
 
