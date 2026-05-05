@@ -397,10 +397,7 @@ private struct CatalogProductsView: View {
                     }
 
                     if vm.isLoading {
-                        ProgressView()
-                            .tint(Color.appPrimary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 20)
+                        PaginationLoader()
                     }
                 }
 
