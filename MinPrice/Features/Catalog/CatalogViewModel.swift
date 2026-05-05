@@ -98,7 +98,7 @@ final class CatalogViewModel: ObservableObject {
 
         do {
             let response = try await api.fetch(SearchResponse.self, path: Endpoint.search(), queryItems: items)
-            if append { products += response.hits } else { products = response.hits }
+            mergeProducts(response.hits, append: append)
             hasMore = response.page + 1 < response.nbPages
             if hasMore { page += 1 }
         } catch {
@@ -116,9 +116,22 @@ final class CatalogViewModel: ObservableObject {
         ]
         do {
             let response = try await api.fetch(ProductsResponse.self, path: Endpoint.products(), queryItems: items)
-            if append { products += response.results } else { products = response.results }
+            mergeProducts(response.results, append: append)
             hasMore = response.next != nil
             if hasMore { page += 1 }
         } catch {}
+    }
+
+    /// Дедуп по UUID при append — иначе ForEach в LazyVGrid падает с
+    /// "ID ... occurs multiple times within the collection" если бэк
+    /// вернул один товар на двух страницах.
+    private func mergeProducts(_ incoming: [Product], append: Bool) {
+        if append {
+            let existing = Set(products.map(\.uuid))
+            let fresh = incoming.filter { !existing.contains($0.uuid) }
+            products = products + fresh
+        } else {
+            products = incoming
+        }
     }
 }

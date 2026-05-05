@@ -49,24 +49,21 @@ final class APIClient {
 
     // MARK: - Request builder
 
-    /// Эндпоинты, к которым НЕ нужно добавлять chain_ids автоматически
-    /// (они не работают с фильтром по сетям, и параметр там бессмыслен).
-    private static let pathsWithoutStoreFilter: Set<String> = [
-        "/cities/", "/categories/", "/chains/", "/session/init/",
+    /// Эндпоинты, ОФИЦИАЛЬНО поддерживающие chain_ids (см. docs/api.md).
+    /// Whitelist — на остальных бэк может вернуть 400 или странную пагинацию,
+    /// и краш ForEach с дублями UUID при перелистывании.
+    private static let pathsWithStoreFilter: Set<String> = [
+        "/search/", "/discounts/",
     ]
 
     func request(path: String, queryItems: [URLQueryItem] = []) -> URLRequest {
         var components = URLComponents(string: baseURL + path)!
         var allItems = queryItems
 
-        // Авто-инжект фильтра избранных магазинов — кроме reference-эндпоинтов.
-        // Бэк должен поддержать chain_ids на /products/, /search/, /best-deals/,
-        // /discounts/, /home/basket/, /carts/...
-        if !Self.pathsWithoutStoreFilter.contains(path),
-           !path.hasPrefix("/cart/"),
+        // Авто-инжект chain_ids только на endpoints, которые задокументировано
+        // принимают этот параметр. Cart/products/best-deals не трогаем.
+        if Self.pathsWithStoreFilter.contains(path),
            queryItems.first(where: { $0.name == "chain_ids" }) == nil {
-            // FavoriteStoresStore — @MainActor, поэтому используем sync-доступ к статическому singleton.
-            // На background потоке можно прочитать значение через UserDefaults напрямую.
             if let csv = Self.cachedChainIdsCSV(), !csv.isEmpty {
                 allItems.append(URLQueryItem(name: "chain_ids", value: csv))
             }

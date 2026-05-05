@@ -87,7 +87,10 @@ final class SearchViewModel: ObservableObject {
         do {
             let response = try await api.fetch(SearchResponse.self, path: Endpoint.search(), queryItems: items)
             if append {
-                results += response.hits
+                // Дедуп — иначе ForEach падает с дублями UUID на скролле.
+                let existing = Set(results.map(\.uuid))
+                let fresh = response.hits.filter { !existing.contains($0.uuid) }
+                results = results + fresh
             } else {
                 results = response.hits
                 totalHits = response.nbHits

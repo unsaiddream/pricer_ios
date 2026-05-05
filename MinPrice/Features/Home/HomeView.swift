@@ -49,19 +49,6 @@ struct HomeView: View {
                             .padding(.bottom, 16)
                         }
 
-                        if !vm.categories.isEmpty {
-                            CategoryStrip(
-                                categories: vm.categories,
-                                selectedId: vm.basketCategory?.id,
-                                onSelectAll: {
-                                    Task { await vm.selectAllCategories(cityId: cityStore.selectedCityId) }
-                                }
-                            ) { cat in
-                                Task { await vm.selectBasketCategory(cat, cityId: cityStore.selectedCityId) }
-                            }
-                            .padding(.bottom, 16)
-                        }
-
                         if !vm.bestDeals.isEmpty {
                             SectionHeader(title: "Выгодные предложения", count: vm.bestDeals.count, accent: Color.discountRed)
                                 .padding(.horizontal, 16)

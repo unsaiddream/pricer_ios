@@ -37,7 +37,11 @@ struct StorePrice: Codable, Identifiable {
 }
 
 struct Product: Codable, Identifiable {
-    let id: Int
+    /// Identifiable.id — uuid (String), а не int id из БД. UUID гарантированно
+    /// уникален на бэке, int id может конфликтовать при объединении пагинации
+    /// → ForEach падает с "ID occurs multiple times" на скролле.
+    var id: String { uuid }
+    let dbId: Int
     let uuid: String
     let title: String
     let brand: String?
@@ -60,7 +64,8 @@ struct Product: Codable, Identifiable {
     var maxPrice: Double? { _maxPrice?.value }
 
     enum CodingKeys: String, CodingKey {
-        case id, uuid, title, brand, imageUrl, measureUnit, measureUnitKind, measureUnitQty, packCount, isActive, linkedStoresCount, stores, description, priceRange
+        case uuid, title, brand, imageUrl, measureUnit, measureUnitKind, measureUnitQty, packCount, isActive, linkedStoresCount, stores, description, priceRange
+        case dbId = "id"
         case _minPrice = "minPrice"
         case _maxPrice = "maxPrice"
     }

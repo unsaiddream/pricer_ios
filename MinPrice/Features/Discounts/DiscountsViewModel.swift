@@ -20,7 +20,16 @@ final class DiscountsViewModel: ObservableObject {
 
         do {
             let r = try await api.fetch(DiscountsResponse.self, path: Endpoint.discounts(), queryItems: items)
-            products = append ? products + r.results : r.results
+            // Бэк может вернуть товар сразу на двух страницах (особенно при сортировке
+            // по discount_percent) — дедупим по UUID, иначе ForEach падает с
+            // "ID occurs multiple times within the collection".
+            if append {
+                let existing = Set(products.map(\.uuid))
+                let fresh = r.results.filter { !existing.contains($0.uuid) }
+                products = products + fresh
+            } else {
+                products = r.results
+            }
             hasMore = page < r.totalPages
             if hasMore { page += 1 }
         } catch {}
