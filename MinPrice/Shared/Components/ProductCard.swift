@@ -161,58 +161,43 @@ struct ProductCard: View, Equatable {
 
             // Cart button / stepper
             if cartCount > 0 {
-                // Когда товар в корзине — степпер на акцентной заливке (та же интенсивность
-                // что и кнопка "Добавить", чтобы не было визуального скачка при добавлении).
                 HStack(spacing: 0) {
                     Button(action: { onRemove?() }) {
-                        Image(systemName: cartCount == 1 ? "trash" : "minus")
+                        Image(systemName: "minus")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 46, height: 42)
+                            .frame(width: 44, height: 38)
                     }
                     Text("\(cartCount)")
-                        .font(.system(size: 16, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
-                        .contentTransition(.numericText())
-                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: cartCount)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
                         .frame(maxWidth: .infinity)
                     Button(action: { onAdd?() }) {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 46, height: 42)
+                            .frame(width: 44, height: 38)
                     }
                 }
+                .foregroundStyle(Color.appPrimary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 42)
-                .background(LinearGradient.brandPrimary)
-                .shadow(color: Color.appPrimary.opacity(0.25), radius: 6, x: 0, y: 2)
+                .frame(height: 38)
+                .background(Color.appPrimary.opacity(0.12))
             } else {
-                // Главный CTA — заметная гладкая кнопка с градиентом, не "blue text on light".
                 Button(action: { onAdd?() }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "cart.badge.plus")
-                            .font(.system(size: 13, weight: .heavy))
-                        Text("Добавить в корзину")
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
-                            .kerning(0.2)
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 42)
-                    .background {
-                        ZStack {
-                            LinearGradient.brandPrimary
-                            // Лёгкая стеклянная подсветка сверху
-                            LinearGradient(
-                                colors: [.white.opacity(0.22), .clear],
-                                startPoint: .top, endPoint: .center
-                            )
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                        if let price = displayPrice {
+                            Text(formatPriceTg(price))
+                                .font(.system(size: 13, weight: .semibold))
+                        } else {
+                            Text("В корзину")
+                                .font(.system(size: 13, weight: .semibold))
                         }
                     }
-                    .shadow(color: Color.appPrimary.opacity(0.30), radius: 6, x: 0, y: 2)
+                    .foregroundStyle(Color.appPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .background(Color.appPrimary.opacity(0.08))
                 }
-                .buttonStyle(.plain)
             }
         }
         .background(Color.appCard)

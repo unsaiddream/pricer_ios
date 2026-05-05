@@ -2,8 +2,9 @@ import Foundation
 
 func formatPriceTg(_ value: Double) -> String {
     let intValue = Int(round(value))
-    let useGrouping = abs(intValue) >= 10_000
-    if useGrouping {
+    // Группируем тысячи начиная с 1 000 — иначе "1455 тг" сливается в "тысячу четыре",
+    // плохо читается на ходу. С пробелом-разделителем "1 455 тг" — мгновенно ясно.
+    if abs(intValue) >= 1_000 {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.groupingSeparator = " "
@@ -22,7 +23,7 @@ func formatPriceTg(_ value: Int) -> String {
 // Только отформатированное число без "тг" — для hero-цены где "тг" отдельный Text
 func formatPriceNumber(_ value: Double) -> String {
     let intValue = Int(round(value))
-    if abs(intValue) >= 10_000 {
+    if abs(intValue) >= 1_000 {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         formatter.groupingSeparator = " "
