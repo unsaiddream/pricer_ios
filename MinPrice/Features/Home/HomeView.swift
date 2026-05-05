@@ -390,16 +390,20 @@ private struct FlameBadge: View {
         ZStack {
             // Тёплое свечение под пламенем — эффект тепла
             Image(systemName: "flame.fill")
+                .symbolRenderingMode(.monochrome)
                 .font(.system(size: 38))
                 .foregroundStyle(accent.opacity(0.4))
                 .blur(radius: 8)
 
-            // Сам огонёк с градиентом
+            // Сам огонёк — fully solid, без внутренних cutout'ов SF Symbol'а.
+            // .monochrome убирает hierarchical-слои (там был "внутренний" темнее
+            // overlay), и градиент идёт по ВСЕЙ силуэт-форме пламени без дыр.
             Image(systemName: "flame.fill")
+                .symbolRenderingMode(.monochrome)
                 .font(.system(size: 32))
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Color.orange, accent, accent.opacity(0.85)],
+                        colors: [Color.orange, accent, Color.discountRedDeep],
                         startPoint: .top, endPoint: .bottom
                     )
                 )
