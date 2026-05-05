@@ -62,10 +62,13 @@ extension LinearGradient {
 }
 
 // MARK: - Большой заголовок экрана
-// Editorial-style: solid Color.appForeground (контраст лучше градиента),
-// heavy weight + rounded + tight negative kerning. Декоративная точка в
-// конце акцентного цвета + тонкая gradient-полоска под заголовком.
-// Опциональный eyebrow в крошечных CAPS даёт характер каждому экрану.
+// Минималистичный: только массивный bold-текст и маленькая акцентная точка.
+// Раньше было: eyebrow CAPS + title + period + gradient-line — четыре
+// декоративных элемента дрались за внимание. Теперь — confident типографика,
+// одна сигнатурная точка цветом-акцентом, ничего лишнего.
+//
+// Параметр eyebrow оставлен для API-совместимости (ранее использовался),
+// но больше не рендерится.
 
 struct BrandTitle: View {
     let text: String
@@ -73,32 +76,14 @@ struct BrandTitle: View {
     var accent: Color = .appPrimary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let eyebrow {
-                Text(eyebrow.uppercased())
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .kerning(1.4)
-                    .foregroundStyle(accent)
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                Text(text)
-                    .font(.system(size: 32, weight: .black, design: .rounded))
-                    .kerning(-0.5)
-                    .foregroundStyle(Color.appForeground)
-                // Точка-акцент в конце — editorial flourish ("Скидки.")
-                Text(".")
-                    .font(.system(size: 32, weight: .black, design: .rounded))
-                    .foregroundStyle(accent)
-            }
-            // Тонкая gradient-полоса под заголовком — растворяется вправо
-            Capsule()
-                .fill(
-                    LinearGradient(
-                        colors: [accent, accent.opacity(0)],
-                        startPoint: .leading, endPoint: .trailing
-                    )
-                )
-                .frame(width: 56, height: 3)
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text(text)
+                .font(.system(size: 34, weight: .black, design: .rounded))
+                .kerning(-0.6)
+                .foregroundStyle(Color.appForeground)
+            Text(".")
+                .font(.system(size: 34, weight: .black, design: .rounded))
+                .foregroundStyle(accent)
         }
     }
 }

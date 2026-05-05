@@ -314,9 +314,9 @@ private struct HeroBanner: View {
     }
 }
 
-/// Section header в стиле "highlighter" — название обведено маркером
-/// акцентного цвета снизу (как в editorial/print дизайне). Распознаваемый
-/// приём, читаемый, и оставляет место для огонёк-бейджа справа.
+/// Минималистичный section header — confident bold-текст + бейдж справа.
+/// Раньше был хайлайтер-strip под текстом (выглядел как наклеенный стикер).
+/// Теперь чисто: вес типографики делает работу сам, акцент только в badge.
 private struct SectionHeader: View {
     enum BadgeStyle { case pill, flame }
 
@@ -331,17 +331,6 @@ private struct SectionHeader: View {
                 .font(.system(size: 22, weight: .black, design: .rounded))
                 .kerning(-0.3)
                 .foregroundStyle(Color.appForeground)
-                .padding(.horizontal, 4)
-                .background(alignment: .bottom) {
-                    // Highlighter-полоса под нижней третью текста.
-                    // Слегка вылезает за края текста (-3pt) — так чувствуется
-                    // что это маркером прошлись поверх, а не просто прямоугольник.
-                    Rectangle()
-                        .fill(accent.opacity(0.32))
-                        .frame(height: 11)
-                        .padding(.horizontal, -3)
-                        .offset(y: -1)
-                }
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
 
