@@ -51,10 +51,10 @@ struct HomeView: View {
                         if !vm.bestDeals.isEmpty {
                             SectionHeader(title: "Выгодные предложения",
                                           count: vm.bestDeals.count,
-                                          badgeStyle: .flame,
+                                          eyebrow: "Сейчас выгодно",
                                           accent: Color.discountRed)
                                 .padding(.horizontal, 16)
-                                .padding(.bottom, 10)
+                                .padding(.bottom, 14)
 
                             LazyVGrid(columns: gridColumns, spacing: 10) {
                                 ForEach(vm.bestDeals) { product in
@@ -69,12 +69,12 @@ struct HomeView: View {
 
                         if !vm.priceDrops.isEmpty {
                             SectionHeader(title: "Снижение цен",
-                                          count: nil,
-                                          emoji: "📉",
+                                          count: vm.priceDrops.count,
+                                          eyebrow: "Цены полетели вниз",
                                           accent: Color.savingsGreen)
                                 .padding(.horizontal, 16)
-                                .padding(.top, 24)
-                                .padding(.bottom, 10)
+                                .padding(.top, 28)
+                                .padding(.bottom, 14)
 
                             LazyVGrid(columns: gridColumns, spacing: 10) {
                                 ForEach(vm.priceDrops) { product in
@@ -314,109 +314,43 @@ private struct HeroBanner: View {
     }
 }
 
+/// Drinkit-style section header:
+/// — крошечный UPPERCASE eyebrow (10pt, kerning 1.6) акцентным цветом
+/// — массивный title 26pt black rounded с минус-кернингом
+/// — точка-флориш в конце акцентным цветом ("Выгодные предложения.")
+/// — счётчик inline после точки, slightly muted accent цвета
 private struct SectionHeader: View {
-    enum BadgeStyle {
-        case pill, flame
-    }
-
     let title: String
     let count: Int?
-    var emoji: String? = nil
-    var badgeStyle: BadgeStyle = .pill
+    var eyebrow: String? = nil
     var accent: Color = .appPrimary
 
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            if let emoji {
-                Text(emoji)
-                    .font(.system(size: 22))
-                    .shadow(color: accent.opacity(0.35), radius: 4, x: 0, y: 1)
+        VStack(alignment: .leading, spacing: 4) {
+            if let eyebrow {
+                Text(eyebrow.uppercased())
+                    .font(.system(size: 10, weight: .black, design: .rounded))
+                    .kerning(1.6)
+                    .foregroundStyle(accent)
             }
-            Text(title)
-                .font(.system(size: 22, weight: .black, design: .rounded))
-                .kerning(-0.3)
-                .foregroundStyle(Color.appForeground)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
 
-            Spacer(minLength: 8)
-
-            if let count {
-                badge(for: count)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func badge(for count: Int) -> some View {
-        switch badgeStyle {
-        case .pill:
-            Text("\(count)")
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 9).padding(.vertical, 3)
-                .background {
-                    ZStack {
-                        Capsule().fill(accent)
-                        Capsule().fill(LinearGradient(
-                            colors: [.white.opacity(0.28), .clear],
-                            startPoint: .top, endPoint: .center
-                        ))
-                    }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(title)
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .kerning(-0.6)
+                    .foregroundStyle(Color.appForeground)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(".")
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .foregroundStyle(accent)
+                if let count {
+                    Text("\(count)")
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .foregroundStyle(accent.opacity(0.7))
+                        .padding(.leading, 2)
                 }
-                .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
-                .shadow(color: accent.opacity(0.40), radius: 5, x: 0, y: 2)
-                .fixedSize()
-
-        case .flame:
-            FlameBadge(count: count, accent: accent)
-        }
-    }
-}
-
-/// Бейдж-огонёк — SF Symbol flame.fill с числом, вписанным в "тело" пламени.
-/// Цвет огня — градиент ярко-оранжевый → accent, чтобы было ощущение тепла.
-private struct FlameBadge: View {
-    let count: Int
-    let accent: Color
-
-    @State private var flicker = false
-
-    var body: some View {
-        ZStack {
-            // Тёплое свечение под пламенем — как от настоящего огня
-            Image(systemName: "flame.fill")
-                .font(.system(size: 38))
-                .foregroundStyle(accent.opacity(0.4))
-                .blur(radius: 8)
-
-            // Сам огонёк с градиентом
-            Image(systemName: "flame.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            Color.orange,
-                            accent,
-                            accent.opacity(0.85),
-                        ],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .scaleEffect(y: flicker ? 1.05 : 0.97)
-
-            // Число — белое, в нижней (широкой) части пламени
-            Text("\(count)")
-                .font(.system(size: 11, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 0.5)
-                .offset(y: 4)
-        }
-        .frame(width: 36, height: 38)
-        .onAppear {
-            // Пламя "колышется" — едва заметная пульсация по вертикали
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                flicker.toggle()
+                Spacer(minLength: 0)
             }
         }
     }
