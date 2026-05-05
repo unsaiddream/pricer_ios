@@ -607,6 +607,13 @@ private struct StoreComparisonSection: View {
                                         items: store.products,
                                         cityId: cityStore.selectedCityId
                                     ) {
+                                        // Записываем экономию в "кошелёк" — разница между
+                                        // самым дорогим single-store и выбранным.
+                                        let worst = totals.map(\.totalPrice).max() ?? store.totalPrice
+                                        let savings = worst - store.totalPrice
+                                        if savings > 0 {
+                                            SavingsWalletStore.shared.recordSavings(savings)
+                                        }
                                         await UIApplication.shared.open(url)
                                     }
                                     transferringSource = nil

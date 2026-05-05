@@ -16,12 +16,17 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // Hero — фильтр по магазинам. Кружки кликаются, выбор хранится локально,
-                    // и автоматически прилипает ко всем product-запросам (через FavoriteStoresStore).
-                    // Аналитика цен (StoreBasketChart) временно убрана — планировали "позже" вернуть.
-                    StoresFilterBar()
+                    // Killer feature — кошелёк экономии. Растёт с каждым cart transfer.
+                    // Это первое что видит пользователь, главный value-prop приложения.
+                    SavingsHero()
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
+                        .padding(.bottom, 12)
+
+                    // Hero — фильтр по магазинам. Кружки кликаются, выбор хранится локально,
+                    // и автоматически прилипает ко всем product-запросам (через FavoriteStoresStore).
+                    StoresFilterBar()
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 16)
                         .onChange(of: favStores.selectedIds) { _ in
                             // Перезагружаем главную при изменении набора магазинов —

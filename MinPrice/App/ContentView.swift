@@ -21,6 +21,7 @@ struct ContentView: View {
     @EnvironmentObject var cartStore: CartStore
     @EnvironmentObject var favoritesStore: FavoritesStore
     @EnvironmentObject var cityStore: CityStore
+    @ObservedObject private var savingsWallet = SavingsWalletStore.shared
 
     private let tabOrder = Tab.allCases
 
@@ -129,6 +130,16 @@ struct ContentView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .animation(.spring(response: 0.4, dampingFraction: 0.7), value: cartStore.toastMessage)
                     .zIndex(100)
+            }
+
+            // Achievement toast — milestone разблокирован.
+            // Поверх всего, с конфетти. Главный wow-момент приложения.
+            if let milestone = savingsWallet.newlyUnlocked {
+                AchievementToast(milestone: milestone) {
+                    savingsWallet.acknowledgeUnlock()
+                }
+                .zIndex(200)
+                .transition(.opacity)
             }
         }
         .ignoresSafeArea(edges: .bottom)
