@@ -11,8 +11,10 @@ struct DiscountsView: View {
         NavigationStack {
             ScrollView {
                 // Заголовок + лёгкая полоска статов под ним (счётчик + средняя)
-                VStack(alignment: .leading, spacing: 6) {
-                    BrandTitle(text: "Скидки")
+                VStack(alignment: .leading, spacing: 10) {
+                    BrandTitle(text: "Скидки",
+                               eyebrow: "Сегодня выгодно",
+                               accent: Color.discountRed)
                     if !vm.products.isEmpty {
                         HStack(spacing: 6) {
                             DiscountStatPill(icon: "tag.fill",

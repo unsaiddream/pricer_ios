@@ -176,7 +176,9 @@ private struct CartSummaryView: View {
 
                 // Кастомный заголовок страницы
                 HStack {
-                    BrandTitle(text: "Корзина")
+                    BrandTitle(text: "Корзина",
+                               eyebrow: "Экономия в реальном времени",
+                               accent: Color.savingsGreen)
                     Spacer()
                     HStack(spacing: 12) {
                         Button(action: onClear) {

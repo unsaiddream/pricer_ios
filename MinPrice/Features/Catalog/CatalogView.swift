@@ -59,8 +59,9 @@ private struct CategoryGridView: View {
     var body: some View {
         ScrollView {
             // Header — title + contextual subtitle
-            VStack(alignment: .leading, spacing: 3) {
-                BrandTitle(text: "Каталог")
+            VStack(alignment: .leading, spacing: 8) {
+                BrandTitle(text: "Каталог",
+                           eyebrow: "Выбирайте по категориям")
                 HStack(spacing: 6) {
                     if !categories.isEmpty {
                         Text("\(categories.count) \(categoriesWord(categories.count))")

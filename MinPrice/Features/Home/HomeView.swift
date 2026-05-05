@@ -49,7 +49,10 @@ struct HomeView: View {
                         }
 
                         if !vm.bestDeals.isEmpty {
-                            SectionHeader(title: "Выгодные предложения", count: vm.bestDeals.count, accent: Color.discountRed)
+                            SectionHeader(title: "Выгодные предложения",
+                                          count: vm.bestDeals.count,
+                                          emoji: "🔥",
+                                          accent: Color.discountRed)
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 10)
 
@@ -65,7 +68,10 @@ struct HomeView: View {
                         }
 
                         if !vm.priceDrops.isEmpty {
-                            SectionHeader(title: "Снижение цен", count: nil, accent: Color.savingsGreen)
+                            SectionHeader(title: "Снижение цен",
+                                          count: nil,
+                                          emoji: "📉",
+                                          accent: Color.savingsGreen)
                                 .padding(.horizontal, 16)
                                 .padding(.top, 24)
                                 .padding(.bottom, 10)
@@ -311,50 +317,41 @@ private struct HeroBanner: View {
 private struct SectionHeader: View {
     let title: String
     let count: Int?
+    var emoji: String? = nil
     var accent: Color = .appPrimary
 
-    private var titleGradient: LinearGradient { .brandPrimary }
-
     var body: some View {
-        HStack(spacing: 10) {
-            // Accent bar — мини-градиент в тон акценту
-            RoundedRectangle(cornerRadius: 2)
-                .fill(
-                    LinearGradient(
-                        colors: [accent.opacity(0.95), accent.opacity(0.55)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .frame(width: 3, height: 20)
-                .shadow(color: accent.opacity(0.5), radius: 4, x: 0, y: 0)
-
+        HStack(alignment: .center, spacing: 8) {
+            if let emoji {
+                Text(emoji)
+                    .font(.system(size: 22))
+                    .shadow(color: accent.opacity(0.35), radius: 4, x: 0, y: 1)
+            }
             Text(title)
-                .font(.system(size: 18, weight: .heavy, design: .rounded))
-                .kerning(0.3)
-                .foregroundStyle(titleGradient)
-                .shadow(color: Color.appPrimary.opacity(0.20), radius: 6, x: 0, y: 0)
+                .font(.system(size: 22, weight: .black, design: .rounded))
+                .kerning(-0.3)
+                .foregroundStyle(Color.appForeground)
                 .lineLimit(1)
-                .minimumScaleFactor(0.85)
-            Spacer()
+                .minimumScaleFactor(0.8)
+
+            Spacer(minLength: 8)
+
             if let count {
+                // Pill — теперь со стеклянной подсветкой и солидным цветом
                 Text("\(count)")
                     .font(.system(size: 12, weight: .black, design: .rounded))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 8).padding(.vertical, 2.5)
+                    .padding(.horizontal, 9).padding(.vertical, 3)
                     .background {
                         ZStack {
-                            LinearGradient(
-                                colors: [accent.opacity(0.95), accent.opacity(0.7)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            )
-                            LinearGradient(
-                                colors: [.white.opacity(0.30), .clear],
+                            Capsule().fill(accent)
+                            Capsule().fill(LinearGradient(
+                                colors: [.white.opacity(0.28), .clear],
                                 startPoint: .top, endPoint: .center
-                            )
+                            ))
                         }
-                        .clipShape(Capsule())
                     }
-                    .overlay(Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
+                    .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
                     .shadow(color: accent.opacity(0.40), radius: 5, x: 0, y: 2)
                     .fixedSize()
             }

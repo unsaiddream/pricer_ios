@@ -61,17 +61,45 @@ extension LinearGradient {
     }
 }
 
-// MARK: - Большой заголовок экрана (применяется на главной/каталоге/скидках/избранном/корзине)
+// MARK: - Большой заголовок экрана
+// Editorial-style: solid Color.appForeground (контраст лучше градиента),
+// heavy weight + rounded + tight negative kerning. Декоративная точка в
+// конце акцентного цвета + тонкая gradient-полоска под заголовком.
+// Опциональный eyebrow в крошечных CAPS даёт характер каждому экрану.
 
 struct BrandTitle: View {
     let text: String
+    var eyebrow: String? = nil
+    var accent: Color = .appPrimary
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 28, weight: .heavy, design: .rounded))
-            .kerning(0.2)
-            .foregroundStyle(LinearGradient.brandPrimary)
-            .shadow(color: Color.appPrimary.opacity(0.20), radius: 8, x: 0, y: 0)
+        VStack(alignment: .leading, spacing: 6) {
+            if let eyebrow {
+                Text(eyebrow.uppercased())
+                    .font(.system(size: 10, weight: .black, design: .rounded))
+                    .kerning(1.4)
+                    .foregroundStyle(accent)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Text(text)
+                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .kerning(-0.5)
+                    .foregroundStyle(Color.appForeground)
+                // Точка-акцент в конце — editorial flourish ("Скидки.")
+                Text(".")
+                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .foregroundStyle(accent)
+            }
+            // Тонкая gradient-полоса под заголовком — растворяется вправо
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [accent, accent.opacity(0)],
+                        startPoint: .leading, endPoint: .trailing
+                    )
+                )
+                .frame(width: 56, height: 3)
+        }
     }
 }
 

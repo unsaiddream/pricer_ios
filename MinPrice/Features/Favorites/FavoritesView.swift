@@ -85,7 +85,9 @@ struct FavoritesView: View {
                     ScrollView {
                         HStack(alignment: .center) {
                             VStack(alignment: .leading, spacing: 3) {
-                                BrandTitle(text: "Избранное")
+                                BrandTitle(text: "Избранное",
+                                           eyebrow: "Отслеживаем ваши товары",
+                                           accent: Color.appPrimary)
                                 if vm.isLoading {
                                     HStack(spacing: 4) {
                                         ProgressView()
