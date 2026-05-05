@@ -16,17 +16,20 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // Live deal ticker — бегущая строка верхних скидок. Сигнатура нашего
-                    // trading-floor UI: единственное что увидит пользователь сразу —
-                    // прайсы движутся, дельты ▼ зелёным. Хочется смотреть.
+                    // Live deal ticker — бегущая строка верхних скидок.
                     if !vm.bestDeals.isEmpty {
                         LiveTicker(products: vm.bestDeals)
                             .padding(.top, 8)
                             .padding(.bottom, 14)
                     }
 
-                    // Hero — фильтр по магазинам. Кружки кликаются, выбор хранится локально,
-                    // и автоматически прилипает ко всем product-запросам (через FavoriteStoresStore).
+                    // Hero stats — trading-floor дашборд: средняя экономия,
+                    // движения цен, max скидка. Главный value-prop "одним взглядом".
+                    HomeStatsBand(bestDeals: vm.bestDeals, priceDrops: vm.priceDrops)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 14)
+
+                    // Фильтр по магазинам.
                     StoresFilterBar()
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)

@@ -76,6 +76,7 @@
 		A0FB100A001E47A5B6F0F1A0 /* FavoriteStoresStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0FB100B001E47A5B6F0F1A1 /* FavoriteStoresStore.swift */; };
 		A0FB100C001E47A5B6F0F1A2 /* StoresFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0FB100D001E47A5B6F0F1A3 /* StoresFilterBar.swift */; };
 		C2DD300000004800C7F1F3B0 /* LiveTicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2DD300000004800C7F1F3B1 /* LiveTicker.swift */; };
+		D3EE400000004900D8F2F4C0 /* HomeStatsBand.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3EE400000004900D8F2F4C1 /* HomeStatsBand.swift */; };
 		E7C6AF3335BDD3436922B109 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD37198C751CEDA4BAB87F6F /* SplashView.swift */; };
 		EC4D96E4B9073C0F8EF83DE2 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FCFC8501CF130FB35572C60 /* AppTheme.swift */; };
 		F4AA487D29890B472589B262 /* CatalogViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1213CB1A9A2A8921F566D744 /* CatalogViewModel.swift */; };
@@ -144,6 +145,7 @@
 		A0FB100B001E47A5B6F0F1A1 /* FavoriteStoresStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteStoresStore.swift; sourceTree = "<group>"; };
 		A0FB100D001E47A5B6F0F1A3 /* StoresFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoresFilterBar.swift; sourceTree = "<group>"; };
 		C2DD300000004800C7F1F3B1 /* LiveTicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTicker.swift; sourceTree = "<group>"; };
+		D3EE400000004900D8F2F4C1 /* HomeStatsBand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeStatsBand.swift; sourceTree = "<group>"; };
 		6BB68BE483166C93F408328A /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		6CC68D1D6B4978D5A32A032B /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
 		6F1AC7665CD25E362CC1B899 /* SkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonView.swift; sourceTree = "<group>"; };
@@ -229,6 +231,7 @@
 				6426F79EDBB88EA31D3F63FB /* StoreLogoView.swift */,
 				A0FB100D001E47A5B6F0F1A3 /* StoresFilterBar.swift */,
 				C2DD300000004800C7F1F3B1 /* LiveTicker.swift */,
+				D3EE400000004900D8F2F4C1 /* HomeStatsBand.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -640,6 +643,7 @@
 				A0FB100A001E47A5B6F0F1A0 /* FavoriteStoresStore.swift in Sources */,
 				A0FB100C001E47A5B6F0F1A2 /* StoresFilterBar.swift in Sources */,
 				C2DD300000004800C7F1F3B0 /* LiveTicker.swift in Sources */,
+				D3EE400000004900D8F2F4C0 /* HomeStatsBand.swift in Sources */,
 				A546643FF9415593168AD165 /* PriceHistory.swift in Sources */,
 				65D3DADD8148D50A352B5452 /* Product.swift in Sources */,
 				718D9A0F31B6AE5C78D0DD72 /* ProductCard.swift in Sources */,
@@ -728,7 +732,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = MinPriceWidgetsExtension.entitlements;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				INFOPLIST_FILE = MinPriceWidgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -779,7 +783,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 9LZD54M75S;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -809,7 +813,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = MinPriceWidgetsExtension.entitlements;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				INFOPLIST_FILE = MinPriceWidgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -896,7 +900,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 9LZD54M75S;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

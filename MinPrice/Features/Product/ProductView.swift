@@ -365,8 +365,8 @@ private struct PriceHero: View {
             // ── Hero price — большая, центральная ──
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(formatPriceNumber(range.min))
-                    .font(.system(size: 52, weight: .black, design: .rounded))
-                    .kerning(-1.0)
+                    .font(.mono(48, weight: .bold))
+                    .kerning(-0.8)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [greenSoft, Color.savingsGreen, greenDeep],
@@ -376,12 +376,11 @@ private struct PriceHero: View {
                     .shadow(color: Color.savingsGreen.opacity(hasSaving ? 0.40 : 0.20), radius: 14, x: 0, y: 0)
                     .contentTransition(.numericText())
                     .animation(.spring(response: 0.45, dampingFraction: 0.75), value: range.min)
-                    .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
                 Text("тг")
-                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .font(.mono(18, weight: .bold))
                     .foregroundStyle(Color.savingsGreen.opacity(0.65))
 
                 Spacer(minLength: 0)
@@ -578,12 +577,12 @@ private struct StorePricesSection: View {
                         VStack(alignment: .trailing, spacing: 2) {
                             if let prev = store.previousPrice, prev > store.price {
                                 Text(formatPriceTg(prev))
-                                    .font(.system(size: 11, design: .rounded))
+                                    .font(.mono(11))
                                     .foregroundStyle(Color.appMuted)
                                     .strikethrough()
                             }
                             Text(formatPriceTg(store.price))
-                                .font(.system(size: 16, weight: isBest ? .black : .semibold, design: .rounded))
+                                .font(.mono(16, weight: isBest ? .bold : .semibold))
                                 .foregroundStyle(
                                     isBest
                                         ? AnyShapeStyle(

@@ -91,12 +91,12 @@ struct ProductRow: View {
             VStack(alignment: .trailing, spacing: 3) {
                 if let price = bestPrice {
                     Text(formatPriceTg(price))
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.mono(15, weight: .bold))
                         .foregroundStyle(Color.savingsGreen)
                 }
                 if let prev = oldPrice {
                     Text(formatPriceTg(prev))
-                        .font(.system(size: 11))
+                        .font(.mono(11))
                         .foregroundStyle(Color.appMuted)
                         .strikethrough()
                 }

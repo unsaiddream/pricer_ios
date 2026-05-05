@@ -125,7 +125,7 @@ struct LiveTicker: View {
                 .lineLimit(1)
 
             Text(formatPriceTg(entry.price))
-                .font(.jb(11, weight: .semibold))
+                .font(.mono(11, weight: .semibold))
                 .foregroundStyle(Color.appBackground)
 
             if let pct = entry.deltaPct, pct > 0 {
@@ -133,7 +133,7 @@ struct LiveTicker: View {
                     Text("▼")
                         .font(.system(size: 8, weight: .black))
                     Text("\(pct)%")
-                        .font(.jb(10, weight: .bold))
+                        .font(.mono(10, weight: .bold))
                 }
                 .foregroundStyle(Color.savingsGreen)
             }
@@ -211,7 +211,7 @@ struct PriceDeltaBadge: View {
             Text(isUp ? "▲" : "▼")
                 .font(.system(size: 8, weight: .black))
             Text("\(abs(percent))%")
-                .font(.jb(10, weight: .bold))
+                .font(.mono(10, weight: .bold))
         }
         .foregroundStyle(isUp ? Color.discountRed : Color.savingsGreen)
         .padding(.horizontal, 5)
