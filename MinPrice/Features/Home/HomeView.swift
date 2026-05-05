@@ -51,7 +51,7 @@ struct HomeView: View {
                         if !vm.bestDeals.isEmpty {
                             SectionHeader(title: "Выгодные предложения",
                                           count: vm.bestDeals.count,
-                                          emoji: "🔥",
+                                          badgeStyle: .flame,
                                           accent: Color.discountRed)
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 10)
@@ -315,9 +315,14 @@ private struct HeroBanner: View {
 }
 
 private struct SectionHeader: View {
+    enum BadgeStyle {
+        case pill, flame
+    }
+
     let title: String
     let count: Int?
     var emoji: String? = nil
+    var badgeStyle: BadgeStyle = .pill
     var accent: Color = .appPrimary
 
     var body: some View {
@@ -337,23 +342,81 @@ private struct SectionHeader: View {
             Spacer(minLength: 8)
 
             if let count {
-                // Pill — теперь со стеклянной подсветкой и солидным цветом
-                Text("\(count)")
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 9).padding(.vertical, 3)
-                    .background {
-                        ZStack {
-                            Capsule().fill(accent)
-                            Capsule().fill(LinearGradient(
-                                colors: [.white.opacity(0.28), .clear],
-                                startPoint: .top, endPoint: .center
-                            ))
-                        }
+                badge(for: count)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func badge(for count: Int) -> some View {
+        switch badgeStyle {
+        case .pill:
+            Text("\(count)")
+                .font(.system(size: 12, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 9).padding(.vertical, 3)
+                .background {
+                    ZStack {
+                        Capsule().fill(accent)
+                        Capsule().fill(LinearGradient(
+                            colors: [.white.opacity(0.28), .clear],
+                            startPoint: .top, endPoint: .center
+                        ))
                     }
-                    .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
-                    .shadow(color: accent.opacity(0.40), radius: 5, x: 0, y: 2)
-                    .fixedSize()
+                }
+                .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
+                .shadow(color: accent.opacity(0.40), radius: 5, x: 0, y: 2)
+                .fixedSize()
+
+        case .flame:
+            FlameBadge(count: count, accent: accent)
+        }
+    }
+}
+
+/// Бейдж-огонёк — SF Symbol flame.fill с числом, вписанным в "тело" пламени.
+/// Цвет огня — градиент ярко-оранжевый → accent, чтобы было ощущение тепла.
+private struct FlameBadge: View {
+    let count: Int
+    let accent: Color
+
+    @State private var flicker = false
+
+    var body: some View {
+        ZStack {
+            // Тёплое свечение под пламенем — как от настоящего огня
+            Image(systemName: "flame.fill")
+                .font(.system(size: 38))
+                .foregroundStyle(accent.opacity(0.4))
+                .blur(radius: 8)
+
+            // Сам огонёк с градиентом
+            Image(systemName: "flame.fill")
+                .font(.system(size: 32))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Color.orange,
+                            accent,
+                            accent.opacity(0.85),
+                        ],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .scaleEffect(y: flicker ? 1.05 : 0.97)
+
+            // Число — белое, в нижней (широкой) части пламени
+            Text("\(count)")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 0.5)
+                .offset(y: 4)
+        }
+        .frame(width: 36, height: 38)
+        .onAppear {
+            // Пламя "колышется" — едва заметная пульсация по вертикали
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                flicker.toggle()
             }
         }
     }
