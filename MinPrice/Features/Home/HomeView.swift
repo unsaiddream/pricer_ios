@@ -51,7 +51,7 @@ struct HomeView: View {
                         if !vm.bestDeals.isEmpty {
                             SectionHeader(title: "Выгодные предложения",
                                           count: vm.bestDeals.count,
-                                          eyebrow: "Сейчас выгодно",
+                                          badge: .flame,
                                           accent: Color.discountRed)
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 14)
@@ -70,7 +70,7 @@ struct HomeView: View {
                         if !vm.priceDrops.isEmpty {
                             SectionHeader(title: "Снижение цен",
                                           count: vm.priceDrops.count,
-                                          eyebrow: "Цены полетели вниз",
+                                          badge: .pill,
                                           accent: Color.savingsGreen)
                                 .padding(.horizontal, 16)
                                 .padding(.top, 28)
@@ -314,43 +314,108 @@ private struct HeroBanner: View {
     }
 }
 
-/// Drinkit-style section header:
-/// — крошечный UPPERCASE eyebrow (10pt, kerning 1.6) акцентным цветом
-/// — массивный title 26pt black rounded с минус-кернингом
-/// — точка-флориш в конце акцентным цветом ("Выгодные предложения.")
-/// — счётчик inline после точки, slightly muted accent цвета
+/// Section header в стиле "highlighter" — название обведено маркером
+/// акцентного цвета снизу (как в editorial/print дизайне). Распознаваемый
+/// приём, читаемый, и оставляет место для огонёк-бейджа справа.
 private struct SectionHeader: View {
+    enum BadgeStyle { case pill, flame }
+
     let title: String
     let count: Int?
-    var eyebrow: String? = nil
+    var badge: BadgeStyle = .pill
     var accent: Color = .appPrimary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if let eyebrow {
-                Text(eyebrow.uppercased())
-                    .font(.system(size: 10, weight: .black, design: .rounded))
-                    .kerning(1.6)
-                    .foregroundStyle(accent)
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(title)
-                    .font(.system(size: 26, weight: .black, design: .rounded))
-                    .kerning(-0.6)
-                    .foregroundStyle(Color.appForeground)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Text(".")
-                    .font(.system(size: 26, weight: .black, design: .rounded))
-                    .foregroundStyle(accent)
-                if let count {
-                    Text("\(count)")
-                        .font(.system(size: 14, weight: .black, design: .rounded))
-                        .foregroundStyle(accent.opacity(0.7))
-                        .padding(.leading, 2)
+        HStack(alignment: .center, spacing: 10) {
+            Text(title)
+                .font(.system(size: 22, weight: .black, design: .rounded))
+                .kerning(-0.3)
+                .foregroundStyle(Color.appForeground)
+                .padding(.horizontal, 4)
+                .background(alignment: .bottom) {
+                    // Highlighter-полоса под нижней третью текста.
+                    // Слегка вылезает за края текста (-3pt) — так чувствуется
+                    // что это маркером прошлись поверх, а не просто прямоугольник.
+                    Rectangle()
+                        .fill(accent.opacity(0.32))
+                        .frame(height: 11)
+                        .padding(.horizontal, -3)
+                        .offset(y: -1)
                 }
-                Spacer(minLength: 0)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+
+            Spacer(minLength: 8)
+
+            if let count {
+                switch badge {
+                case .flame:
+                    FlameBadge(count: count, accent: accent)
+                case .pill:
+                    countPill(count)
+                }
+            }
+        }
+    }
+
+    private func countPill(_ count: Int) -> some View {
+        Text("\(count)")
+            .font(.system(size: 12, weight: .black, design: .rounded))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 9).padding(.vertical, 3)
+            .background {
+                ZStack {
+                    Capsule().fill(accent)
+                    Capsule().fill(LinearGradient(
+                        colors: [.white.opacity(0.28), .clear],
+                        startPoint: .top, endPoint: .center
+                    ))
+                }
+            }
+            .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
+            .shadow(color: accent.opacity(0.40), radius: 5, x: 0, y: 2)
+            .fixedSize()
+    }
+}
+
+/// Бейдж-огонёк — SF Symbol flame.fill с числом, вписанным в "тело" пламени.
+/// Цвет огня — градиент orange → accent. Пламя слегка пульсирует.
+private struct FlameBadge: View {
+    let count: Int
+    let accent: Color
+
+    @State private var flicker = false
+
+    var body: some View {
+        ZStack {
+            // Тёплое свечение под пламенем — эффект тепла
+            Image(systemName: "flame.fill")
+                .font(.system(size: 38))
+                .foregroundStyle(accent.opacity(0.4))
+                .blur(radius: 8)
+
+            // Сам огонёк с градиентом
+            Image(systemName: "flame.fill")
+                .font(.system(size: 32))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.orange, accent, accent.opacity(0.85)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .scaleEffect(y: flicker ? 1.05 : 0.97)
+
+            // Число белое, в нижней (широкой) части пламени
+            Text("\(count)")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 0.5)
+                .offset(y: 4)
+        }
+        .frame(width: 36, height: 38)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                flicker.toggle()
             }
         }
     }
