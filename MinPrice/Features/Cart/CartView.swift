@@ -211,7 +211,7 @@ private struct CartSummaryView: View {
                                 .foregroundStyle(Color.appMuted)
                                 .kerning(0.8)
                             Text(formatPriceTg(localTotal))
-                                .font(.mono(30, weight: .bold))
+                                .font(.system(size: 30, weight: .black))
                                 .foregroundStyle(Color.savingsGreen)
                                 .contentTransition(.numericText())
                                 .animation(.easeInOut(duration: 0.15), value: localTotal)
@@ -225,10 +225,10 @@ private struct CartSummaryView: View {
                                 .animation(.easeInOut(duration: 0.15), value: totalItems)
                             if savingsAmount > 0 {
                                 HStack(spacing: 3) {
-                                    Text("▼")
-                                        .font(.system(size: 8, weight: .black))
-                                    Text("−\(formatPriceTg(savingsAmount))")
-                                        .font(.mono(11, weight: .bold))
+                                    Image(systemName: "arrow.down.right")
+                                        .font(.system(size: 9, weight: .black))
+                                    Text("экономия \(formatPriceTg(savingsAmount))")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
                                 }
                                 .foregroundStyle(Color.savingsGreen)
                                 .padding(.horizontal, 8).padding(.vertical, 3)
@@ -475,7 +475,7 @@ private struct CartItemRow: View {
                         .foregroundStyle(Color.appMuted)
                 }
                 Text("\(formatPriceTg(item.price)) / шт")
-                    .font(.mono(11))
+                    .font(.system(size: 11))
                     .foregroundStyle(Color.appMuted.opacity(0.7))
             }
 
@@ -483,7 +483,7 @@ private struct CartItemRow: View {
 
             VStack(alignment: .trailing, spacing: 8) {
                 Text(formatPriceTg(item.price * Double(qty)))
-                    .font(.mono(15, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Color.appForeground)
                     .contentTransition(.numericText())
                     .animation(.easeInOut(duration: 0.12), value: qty)
@@ -588,7 +588,7 @@ private struct StoreComparisonSection: View {
 
                         VStack(alignment: .trailing, spacing: 2) {
                             Text(formatPriceTg(store.totalPrice))
-                                .font(.mono(15, weight: .bold))
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(isCheapest ? Color.savingsGreen : Color.appForeground)
                             if store.availableCount < store.totalCount {
                                 Text("не все товары")

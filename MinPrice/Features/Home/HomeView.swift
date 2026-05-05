@@ -16,22 +16,11 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // Live deal ticker — бегущая строка верхних скидок.
-                    if !vm.bestDeals.isEmpty {
-                        LiveTicker(products: vm.bestDeals)
-                            .padding(.top, 8)
-                            .padding(.bottom, 14)
-                    }
-
-                    // Hero stats — trading-floor дашборд: средняя экономия,
-                    // движения цен, max скидка. Главный value-prop "одним взглядом".
-                    HomeStatsBand(bestDeals: vm.bestDeals, priceDrops: vm.priceDrops)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 14)
-
-                    // Фильтр по магазинам.
+                    // Hero — фильтр по магазинам. Кружки кликаются, выбор хранится локально,
+                    // и автоматически прилипает ко всем product-запросам (через FavoriteStoresStore).
                     StoresFilterBar()
                         .padding(.horizontal, 16)
+                        .padding(.top, 12)
                         .padding(.bottom, 16)
                         .onChange(of: favStores.selectedIds) { _ in
                             // Перезагружаем главную при изменении набора магазинов —
@@ -82,8 +71,7 @@ struct HomeView: View {
                             SectionHeader(title: "Снижение цен",
                                           count: vm.priceDrops.count,
                                           badge: .pill,
-                                          accent: Color.savingsGreen,
-                                          live: true)
+                                          accent: Color.savingsGreen)
                                 .padding(.horizontal, 16)
                                 .padding(.top, 28)
                                 .padding(.bottom, 14)
@@ -336,30 +324,18 @@ private struct SectionHeader: View {
     let count: Int?
     var badge: BadgeStyle = .pill
     var accent: Color = .appPrimary
-    /// Показывать LIVE-индикатор (пульсирующая точка + надпись) перед заголовком
-    var live: Bool = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            if live {
-                HStack(spacing: 4) {
-                    LiveDot(color: accent, size: 5)
-                    Text("LIVE")
-                        .font(.jb(9, weight: .bold))
-                        .foregroundStyle(accent)
-                        .kerning(0.8)
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(accent.opacity(0.10), in: Capsule())
-            }
-
             Text(title)
                 .font(.system(size: 22, weight: .black, design: .rounded))
                 .kerning(-0.3)
                 .foregroundStyle(Color.appForeground)
                 .padding(.horizontal, 4)
                 .background(alignment: .bottom) {
+                    // Highlighter-полоса под нижней третью текста.
+                    // Слегка вылезает за края текста (-3pt) — так чувствуется
+                    // что это маркером прошлись поверх, а не просто прямоугольник.
                     Rectangle()
                         .fill(accent.opacity(0.32))
                         .frame(height: 11)

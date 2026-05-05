@@ -120,21 +120,8 @@ struct ProductCard: View, Equatable {
             .frame(height: 140)
             .clipShape(RoundedRectangle(cornerRadius: 14))
             .overlay(alignment: .topLeading) {
-                // Trading-style delta-чип вместо большого красного DiscountChip:
-                // маленький "-12% ▼" — как в финансовых терминалах.
                 if let pct = discountPercent {
-                    HStack(spacing: 2) {
-                        Text("−\(pct)%")
-                            .font(.mono(11, weight: .bold))
-                        Text("▼")
-                            .font(.system(size: 9, weight: .black))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(Color.discountRed, in: Capsule())
-                    .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
-                    .shadow(color: Color.discountRed.opacity(0.40), radius: 4, x: 0, y: 2)
-                    .padding(8)
+                    DiscountChip(percent: pct).padding(8)
                 }
             }
 
@@ -143,14 +130,12 @@ struct ProductCard: View, Equatable {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     if let price = displayPrice {
                         Text(formatPriceTg(price))
-                            .font(.mono(17, weight: .bold))
+                            .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(oldPrice != nil ? Color.savingsGreen : Color.appForeground)
-                            .contentTransition(.numericText())
-                            .animation(.easeOut(duration: 0.2), value: price)
                     }
                     if let prev = oldPrice {
                         Text(formatPriceTg(prev))
-                            .font(.mono(11))
+                            .font(.system(size: 11))
                             .foregroundStyle(Color.appMuted)
                             .strikethrough()
                     }
@@ -271,18 +256,15 @@ private struct StoreGrid: View {
         VStack(spacing: 3) {
             StoreLogoView(url: slot.logoURL, slug: slot.chainSlug, source: slot.storeSource, size: 22)
                 .opacity(slot.inStock ? 1.0 : 0.4)
-            // Прайс моноширинно (JetBrainsMono) — все колонки выравниваются
-            // как в биржевой таблице.
             Text(formatPriceTg(slot.price))
-                .font(.mono(10, weight: isBest ? .bold : .regular))
+                .font(.system(size: 10, weight: isBest ? .bold : .regular))
                 .foregroundStyle(isBest ? Color.appPrimary : Color.appMuted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             if isBest {
                 Text("MIN")
-                    .font(.mono(7, weight: .bold))
+                    .font(.system(size: 7, weight: .black))
                     .foregroundStyle(Color.appPrimary)
-                    .kerning(0.8)
                     .padding(.horizontal, 4).padding(.vertical, 1)
                     .background(Color.appPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
             } else {
