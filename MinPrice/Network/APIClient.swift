@@ -49,10 +49,31 @@ final class APIClient {
 
     // MARK: - Request builder
 
+    /// Эндпоинты, к которым НЕ нужно добавлять chain_ids автоматически
+    /// (они не работают с фильтром по сетям, и параметр там бессмыслен).
+    private static let pathsWithoutStoreFilter: Set<String> = [
+        "/cities/", "/categories/", "/chains/", "/session/init/",
+    ]
+
     func request(path: String, queryItems: [URLQueryItem] = []) -> URLRequest {
         var components = URLComponents(string: baseURL + path)!
-        if !queryItems.isEmpty {
-            components.queryItems = queryItems
+        var allItems = queryItems
+
+        // Авто-инжект фильтра избранных магазинов — кроме reference-эндпоинтов.
+        // Бэк должен поддержать chain_ids на /products/, /search/, /best-deals/,
+        // /discounts/, /home/basket/, /carts/...
+        if !Self.pathsWithoutStoreFilter.contains(path),
+           !path.hasPrefix("/cart/"),
+           queryItems.first(where: { $0.name == "chain_ids" }) == nil {
+            // FavoriteStoresStore — @MainActor, поэтому используем sync-доступ к статическому singleton.
+            // На background потоке можно прочитать значение через UserDefaults напрямую.
+            if let csv = Self.cachedChainIdsCSV(), !csv.isEmpty {
+                allItems.append(URLQueryItem(name: "chain_ids", value: csv))
+            }
+        }
+
+        if !allItems.isEmpty {
+            components.queryItems = allItems
         }
         var req = URLRequest(url: components.url!)
         if let uuid = guestUUID {
@@ -119,6 +140,14 @@ final class APIClient {
         return try decode(T.self, from: data)
     }
 
+    /// Прямое чтение CSV из UserDefaults — без обращения к @MainActor-singleton'у.
+    /// Ключ должен совпадать с FavoriteStoresStore.csv (@AppStorage("minprice_favorite_chains_csv")).
+    private static func cachedChainIdsCSV() -> String? {
+        let s = UserDefaults.standard.string(forKey: "minprice_favorite_chains_csv")
+        guard let s, !s.isEmpty else { return nil }
+        return s
+    }
+
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -142,5 +171,17 @@ enum APIError: LocalizedError {
         case .httpError(let code): return "Ошибка сервера: \(code)"
         case .decodingError(let msg): return "Ошибка данных: \(msg)"
         }
+    }
+}
+
+extension Error {
+    /// Игнорируем cancellation — это нормально при свайпе назад/перезагрузке экрана,
+    /// показывать "cancelled" пользователю не нужно.
+    var isCancellation: Bool {
+        if self is CancellationError { return true }
+        let ns = self as NSError
+        if ns.domain == NSURLErrorDomain, ns.code == NSURLErrorCancelled { return true }
+        if let urlErr = self as? URLError, urlErr.code == .cancelled { return true }
+        return false
     }
 }

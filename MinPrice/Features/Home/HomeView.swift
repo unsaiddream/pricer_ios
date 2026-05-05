@@ -6,58 +6,28 @@ struct HomeView: View {
     @EnvironmentObject var cityStore: CityStore
     @EnvironmentObject var cartStore: CartStore
     @StateObject private var vm = HomeViewModel()
+    @ObservedObject private var favStores = FavoriteStoresStore.shared
     @State private var showCitySelector = false
     @State private var showAbout = false
     @AppStorage("isDarkMode") private var isDarkMode = false
-    @AppStorage("homeAnalyticsExpanded") private var analyticsExpanded = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // Hero — корзина по каталогу дня (с ротацией).
-                    // Отключаемо через RemoteConfig.features.storeBasketChart=false
-                    // на случай если бэкенд просядет или мы захотим тихо отключить
-                    // фичу всем пользователям без релиза.
-                    // Приоритет — готовый агрегат с бэка (vm.basketSummary).
-                    // Если эндпоинт не задеплоен / упал, vm падает на legacy-путь
-                    // с products[] и клиентским precompute.
-                    if (vm.basketSummary != nil || !vm.basketProducts.isEmpty),
-                       ConfigSnapshot.isEnabled(.storeBasketChart) {
-                        VStack(spacing: 0) {
-                            // Заголовок-тоглер
-                            Button(action: { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { analyticsExpanded.toggle() } }) {
-                                HStack {
-                                    Image(systemName: "chart.bar.xaxis")
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(Color.appPrimary)
-                                    Text("Аналитика цен")
-                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(Color.appMuted)
-                                    Spacer()
-                                    Image(systemName: analyticsExpanded ? "chevron.up" : "chevron.down")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(Color.appMuted)
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                            }
-                            .buttonStyle(.plain)
-
-                            if analyticsExpanded {
-                                StoreBasketChart(
-                                    category: vm.basketCategory,
-                                    summary: vm.basketSummary,
-                                    products: vm.basketProducts
-                                )
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 12)
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                            }
+                    // Hero — фильтр по магазинам. Кружки кликаются, выбор хранится локально,
+                    // и автоматически прилипает ко всем product-запросам (через FavoriteStoresStore).
+                    // Аналитика цен (StoreBasketChart) временно убрана — планировали "позже" вернуть.
+                    StoresFilterBar()
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 16)
+                        .onChange(of: favStores.selectedIds) { _ in
+                            // Перезагружаем главную при изменении набора магазинов —
+                            // деалы/скидки фильтруются на бэке по chain_ids.
+                            Task { await vm.load(cityId: cityStore.selectedCityId) }
                         }
-                        .padding(.top, 8)
-                    }
 
                     if vm.isLoading {
                         SkeletonGrid()

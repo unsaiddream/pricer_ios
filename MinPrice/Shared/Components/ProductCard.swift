@@ -5,6 +5,7 @@ import Kingfisher
 private struct StoreSlot {
     let id: Int
     let chainName: String
+    let chainSlug: String?
     let storeSource: String
     let logoURL: URL?
     let price: Double
@@ -30,13 +31,15 @@ struct ProductCard: View, Equatable {
         // Prefer stores[] (list endpoints). Fall back to priceRange.stores (detail endpoint).
         if let s = product.stores, !s.isEmpty {
             return deduplicatedSlots(s.map {
-                StoreSlot(id: $0.storeId, chainName: $0.chainName, storeSource: $0.storeSource,
+                StoreSlot(id: $0.storeId, chainName: $0.chainName, chainSlug: $0.chainSlug,
+                          storeSource: $0.storeSource,
                           logoURL: $0.logoURL, price: $0.price, previousPrice: $0.previousPrice, inStock: $0.inStock)
             })
         }
         if let s = product.priceRange?.stores, !s.isEmpty {
             return deduplicatedSlots(s.map {
-                StoreSlot(id: $0.chainId, chainName: $0.chainName, storeSource: $0.storeSource,
+                StoreSlot(id: $0.chainId, chainName: $0.chainName, chainSlug: $0.chainSlug,
+                          storeSource: $0.storeSource,
                           logoURL: $0.logoURL, price: $0.price, previousPrice: $0.previousPrice, inStock: $0.inStock)
             })
         }
@@ -45,10 +48,13 @@ struct ProductCard: View, Equatable {
 
     // Один магазин на сеть — берём самый дешёвый экземпляр.
     // Убирает дубли Small/Galmart/Toimart когда у сети несколько точек в городе.
+    // Ключ — chainSlug (если есть), иначе chainName, иначе storeSource — потому что
+    // у Wolt-сетей storeSource одинаковый, но chainSlug различает их (small/galmart/toimart).
     private func deduplicatedSlots(_ all: [StoreSlot]) -> [StoreSlot] {
         var best: [String: StoreSlot] = [:]
         for slot in all {
-            let key = slot.chainName.lowercased()
+            let key = (slot.chainSlug?.lowercased())
+                ?? slot.chainName.lowercased()
             if let existing = best[key] {
                 if slot.price < existing.price { best[key] = slot }
             } else {
@@ -147,11 +153,12 @@ struct ProductCard: View, Equatable {
             .padding(.top, 8)
             .padding(.bottom, 6)
 
-            // Store comparison grid — 3 cols, horizontal
+            // Store comparison list — вертикальный (1 строка на сеть)
             Divider().overlay(Color.appBorder)
-            StoreGrid(slots: slots, bestId: bestSlot?.id, linkedCount: product.linkedStoresCount)
-                .frame(height: 64)
-                .padding(.horizontal, 8)
+            StoreList(slots: slots, bestId: bestSlot?.id, linkedCount: product.linkedStoresCount)
+                .padding(.horizontal, 10)
+                .padding(.top, 6)
+                .padding(.bottom, 6)
 
             // Cart button / stepper
             if cartCount > 0 {
@@ -202,9 +209,9 @@ struct ProductCard: View, Equatable {
     }
 }
 
-// MARK: - 3-column store comparison grid
+// MARK: - Vertical store comparison list (icon + price + MIN badge)
 
-private struct StoreGrid: View {
+private struct StoreList: View {
     let slots: [StoreSlot]
     let bestId: Int?
     let linkedCount: Int?
@@ -222,35 +229,33 @@ private struct StoreGrid: View {
                 }
                 Spacer()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
         } else {
-            // 1–3 stores — horizontal grid (same layout for all counts)
-            HStack(alignment: .center, spacing: 0) {
+            VStack(spacing: 4) {
                 ForEach(0..<slots.count, id: \.self) { i in
                     let slot = slots[i]
                     let isBest = slot.id == bestId
-                    VStack(spacing: 3) {
-                        StoreLogoView(url: slot.logoURL, source: slot.storeSource, size: 22)
+                    HStack(spacing: 7) {
+                        StoreLogoView(url: slot.logoURL, slug: slot.chainSlug, source: slot.storeSource, size: 18)
                             .opacity(slot.inStock ? 1.0 : 0.4)
+                        if isBest {
+                            Text("MIN")
+                                .font(.system(size: 8, weight: .black))
+                                .foregroundStyle(Color.appPrimary)
+                                .padding(.horizontal, 4).padding(.vertical, 1)
+                                .background(Color.appPrimary.opacity(0.14), in: RoundedRectangle(cornerRadius: 3))
+                        }
+                        Spacer(minLength: 0)
                         Text(formatPriceTg(slot.price))
-                            .font(.system(size: 10, weight: isBest ? .bold : .regular))
+                            .font(.system(size: 12, weight: isBest ? .bold : .medium, design: .rounded))
                             .foregroundStyle(isBest ? Color.appPrimary : Color.appMuted)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
-                        if isBest {
-                            Text("MIN")
-                                .font(.system(size: 7, weight: .black))
-                                .foregroundStyle(Color.appPrimary)
-                                .padding(.horizontal, 4).padding(.vertical, 1)
-                                .background(Color.appPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
-                        } else {
-                            Color.clear.frame(height: 13)
-                        }
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(height: 18)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity)
         }
     }
 }

@@ -58,9 +58,10 @@ final class HomeViewModel: ObservableObject {
         let deals = await dealsResult
         switch deals {
         case .success(let r): bestDeals = r.deals
-        case .failure(let e): errorMessage = e.localizedDescription
+        case .failure(let e):
+            if !e.isCancellation { errorMessage = e.localizedDescription }
         }
-        isLoading = false
+        if !Task.isCancelled { isLoading = false }
 
         // 4) Drops в фоне (UI уже показан)
         let drops = await dropsResult

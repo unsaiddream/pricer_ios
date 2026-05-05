@@ -17,10 +17,12 @@ final class CartViewModel: ObservableObject {
             let items = [URLQueryItem(name: "city_id", value: String(cityId))]
             summary = try await api.fetch(CartSummaryResponse.self, path: Endpoint.cartSummary(cart.uuid), queryItems: items)
         } catch {
-            self.error = error.localizedDescription
+            if !error.isCancellation {
+                self.error = error.localizedDescription
+            }
         }
 
-        isLoading = false
+        if !Task.isCancelled { isLoading = false }
     }
 
     func removeItem(cart: Cart, productUuid: String, cityId: Int) async {

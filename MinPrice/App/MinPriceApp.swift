@@ -52,7 +52,8 @@ struct MinPriceApp: App {
                     CrashReporter.setGuestUUID(APIClient.shared.guestUUID)
                     async let cities: () = cityStore.loadCities()
                     async let cart: () = cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
-                    _ = await (cities, cart)
+                    async let chains: () = FavoriteStoresStore.shared.loadChains()
+                    _ = await (cities, cart, chains)
                 }
                 .onOpenURL { url in
                     // minprice://product/UUID

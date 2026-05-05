@@ -127,6 +127,11 @@ private struct CartSummaryView: View {
     @State private var localQtys: [String: Int] = [:]
     @State private var debounceWorks: [String: DispatchWorkItem] = [:]
 
+    // Режим отображения: "mix" — корзина по минимуму (по магазинам разбито),
+    // "single" — сравнение что выйдет если купить ВСЁ в одном магазине.
+    // Хранится в @AppStorage чтобы пользователю не приходилось выбирать каждый раз.
+    @AppStorage("cart_view_mode") private var viewMode: String = "mix"
+
     private func qty(for item: CartSummaryStoreItem) -> Int {
         localQtys[item.product.uuid] ?? item.quantity
     }
@@ -139,6 +144,20 @@ private struct CartSummaryView: View {
 
     private var totalItems: Int {
         summary.cheapestPerProduct.reduce(0) { acc, item in acc + qty(for: item) }
+    }
+
+    /// Самая дорогая «один магазин» цена — нужна как baseline для подсчёта savings.
+    /// Если у пользователя в корзине только товары одного магазина — savings нулевая.
+    private var worstSingleStorePrice: Double? {
+        guard !summary.singleStoreTotals.isEmpty else { return nil }
+        // Считаем только магазины где доступны все товары — иначе сравнение нечестное.
+        let complete = summary.singleStoreTotals.filter { $0.availableCount == $0.totalCount }
+        return complete.map(\.totalPrice).max() ?? summary.singleStoreTotals.map(\.totalPrice).max()
+    }
+
+    private var savingsAmount: Double {
+        guard let worst = worstSingleStorePrice, worst > localTotal else { return 0 }
+        return worst - localTotal
     }
 
     private func scheduleUpdate(uuid: String, newQty: Int) {
@@ -182,7 +201,7 @@ private struct CartSummaryView: View {
                 }
 
                 // Шапка — итого (обновляется мгновенно)
-                VStack(spacing: 0) {
+                VStack(spacing: 10) {
                     HStack(alignment: .bottom) {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("ИТОГО ПО МИНИМУМУ")
@@ -196,59 +215,73 @@ private struct CartSummaryView: View {
                                 .animation(.easeInOut(duration: 0.15), value: localTotal)
                         }
                         Spacer()
-                        Text("\(totalItems) \(itemsWord(totalItems))")
-                            .font(.jb(13))
-                            .foregroundStyle(Color.appMuted)
-                            .contentTransition(.numericText())
-                            .animation(.easeInOut(duration: 0.15), value: totalItems)
-                    }
-                    .padding(16)
-                }
-                .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBorder, lineWidth: 1))
-
-                // Список товаров
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Лучшие цены")
-                        .font(.jb(15, weight: .semibold))
-                        .foregroundStyle(Color.appForeground)
-
-                    VStack(spacing: 0) {
-                        ForEach(Array(summary.cheapestPerProduct.enumerated()), id: \.element.product.uuid) { idx, item in
-                            CartItemRow(
-                                item: item,
-                                qty: qty(for: item),
-                                onRemove: { onRemove(item.product.uuid) },
-                                onQuantityChange: { newQty in
-                                    withAnimation(.easeInOut(duration: 0.1)) {
-                                        localQtys[item.product.uuid] = newQty
-                                    }
-                                    scheduleUpdate(uuid: item.product.uuid, newQty: newQty)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("\(totalItems) \(itemsWord(totalItems))")
+                                .font(.jb(13))
+                                .foregroundStyle(Color.appMuted)
+                                .contentTransition(.numericText())
+                                .animation(.easeInOut(duration: 0.15), value: totalItems)
+                            if savingsAmount > 0 {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "arrow.down.right")
+                                        .font(.system(size: 9, weight: .black))
+                                    Text("экономия \(formatPriceTg(savingsAmount))")
+                                        .font(.system(size: 11, weight: .bold, design: .rounded))
                                 }
-                            )
-                            if idx < summary.cheapestPerProduct.count - 1 {
-                                Divider().overlay(Color.appBorder).padding(.leading, 82)
+                                .foregroundStyle(Color.savingsGreen)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(Color.savingsGreen.opacity(0.12), in: Capsule())
+                                .transition(.scale.combined(with: .opacity))
                             }
                         }
                     }
-                    .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBorder, lineWidth: 1))
-                }
-                .onAppear {
-                    for item in summary.cheapestPerProduct {
-                        localQtys[item.product.uuid] = item.quantity
+
+                    // Mode toggle — как на сайте: "Микс" или "Один магазин"
+                    if !summary.singleStoreTotals.isEmpty {
+                        ModeToggle(viewMode: $viewMode)
                     }
                 }
-                .onChange(of: summary.cart.updatedAt) { _ in
-                    for item in summary.cheapestPerProduct {
-                        let uuid = item.product.uuid
-                        if debounceWorks[uuid] == nil {
-                            localQtys[uuid] = item.quantity
+                .padding(16)
+                .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBorder, lineWidth: 1))
+
+                // Список товаров — показываем только в режиме "Микс"
+                if viewMode == "mix" || summary.singleStoreTotals.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.savingsGreen)
+                            Text("Лучшие цены")
+                                .font(.jb(15, weight: .semibold))
+                                .foregroundStyle(Color.appForeground)
                         }
+
+                        VStack(spacing: 0) {
+                            ForEach(Array(summary.cheapestPerProduct.enumerated()), id: \.element.product.uuid) { idx, item in
+                                CartItemRow(
+                                    item: item,
+                                    qty: qty(for: item),
+                                    onRemove: { onRemove(item.product.uuid) },
+                                    onQuantityChange: { newQty in
+                                        withAnimation(.easeInOut(duration: 0.1)) {
+                                            localQtys[item.product.uuid] = newQty
+                                        }
+                                        scheduleUpdate(uuid: item.product.uuid, newQty: newQty)
+                                    }
+                                )
+                                if idx < summary.cheapestPerProduct.count - 1 {
+                                    Divider().overlay(Color.appBorder).padding(.leading, 82)
+                                }
+                            }
+                        }
+                        .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBorder, lineWidth: 1))
                     }
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
                 }
 
-                // Сравнение по магазинам
+                // Сравнение по магазинам — всегда видно (это сердце фичи минимальных цен)
                 if !summary.singleStoreTotals.isEmpty {
                     StoreComparisonSection(totals: summary.singleStoreTotals, vm: vm)
                 }
@@ -342,6 +375,19 @@ private struct CartSummaryView: View {
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
+        .onAppear {
+            for item in summary.cheapestPerProduct {
+                localQtys[item.product.uuid] = item.quantity
+            }
+        }
+        .onChange(of: summary.cart.updatedAt) { _ in
+            for item in summary.cheapestPerProduct {
+                let uuid = item.product.uuid
+                if debounceWorks[uuid] == nil {
+                    localQtys[uuid] = item.quantity
+                }
+            }
+        }
     }
 
     private func itemsWord(_ n: Int) -> String {
@@ -351,6 +397,49 @@ private struct CartSummaryView: View {
         if m10 >= 2 && m10 <= 4 { return "товара" }
         return "товаров"
     }
+}
+
+// MARK: - Mode toggle (Микс vs Один магазин)
+
+private struct ModeToggle: View {
+    @Binding var viewMode: String
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach([("mix", "По минимуму", "sparkles"), ("single", "Один магазин", "storefront")], id: \.0) { key, title, icon in
+                let isActive = viewMode == key
+                Button {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                        viewMode = key
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: icon)
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(title)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(isActive ? .white : Color.appMuted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background {
+                        if isActive {
+                            Capsule()
+                                .fill(LinearGradient.brandPrimary)
+                                .matchedGeometryEffect(id: "mode_pill", in: ns)
+                                .shadow(color: Color.appPrimary.opacity(0.30), radius: 6, x: 0, y: 2)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(Color.appBackground, in: Capsule())
+        .overlay(Capsule().stroke(Color.appBorder, lineWidth: 0.5))
+    }
+
+    @Namespace private var ns
 }
 
 // MARK: - Cart item row
