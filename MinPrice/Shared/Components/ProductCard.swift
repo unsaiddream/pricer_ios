@@ -208,15 +208,14 @@ struct ProductCard: View, Equatable {
     }
 }
 
-// MARK: - 3-column store comparison grid (horizontal, как было)
-// Всегда 3 слота для стабильной высоты карточки в LazyVGrid (пустые невидимые).
+// MARK: - Store comparison grid (горизонтально, центрировано)
+// Колонка фиксированной ширины (1/3 карточки), Spacer'ы по краям —
+// 1 магазин → в середине карточки, 2 → пара по центру, 3 → заполняют.
 
 private struct StoreGrid: View {
     let slots: [StoreSlot]
     let bestId: Int?
     let linkedCount: Int?
-
-    private static let columns = 3
 
     var body: some View {
         if slots.isEmpty {
@@ -233,17 +232,21 @@ private struct StoreGrid: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            HStack(alignment: .center, spacing: 0) {
-                ForEach(0..<Self.columns, id: \.self) { i in
-                    if i < slots.count {
+            // GeometryReader даёт реальную ширину карточки — делим на 3,
+            // получаем фиксированный размер колонки независимо от числа магазинов.
+            // Spacer'ы по краям центрируют группу из 1-2 элементов.
+            GeometryReader { geo in
+                let colWidth = geo.size.width / 3
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    ForEach(0..<slots.count, id: \.self) { i in
                         storeColumn(slots[i])
-                    } else {
-                        // Пустая колонка — занимает место, держит высоту карточки одинаковой.
-                        Color.clear.frame(maxWidth: .infinity)
+                            .frame(width: colWidth)
                     }
+                    Spacer(minLength: 0)
                 }
+                .frame(width: geo.size.width, height: geo.size.height)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
