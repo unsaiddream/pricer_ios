@@ -10,21 +10,17 @@ struct DiscountsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                // Заголовок + лёгкая полоска статов под ним (счётчик + средняя)
                 VStack(alignment: .leading, spacing: 10) {
                     BrandTitle(text: "Скидки",
                                eyebrow: "Сегодня выгодно",
                                accent: Color.discountRed)
                     if !vm.products.isEmpty {
-                        HStack(spacing: 6) {
-                            DiscountStatPill(icon: "tag.fill",
-                                             text: "\(vm.products.count) \(discountsWord(vm.products.count))",
-                                             tint: Color.discountRed)
-                            if avgDiscount > 0 {
-                                DiscountStatPill(icon: "chart.line.downtrend.xyaxis",
-                                                 text: "средняя -\(avgDiscount)%",
-                                                 tint: Color.savingsGreen)
-                            }
+                        HStack(spacing: 8) {
+                            AppMetricPill(
+                                icon: "tag.fill",
+                                text: "\(displayCount) \(discountsWord(displayCount))",
+                                tint: Color.discountRed
+                            )
                             Spacer()
                         }
                     }
@@ -38,43 +34,47 @@ struct DiscountsView: View {
                     SkeletonCardGrid()
                         .padding(.vertical, 12)
                 } else if vm.products.isEmpty && !vm.isLoading {
-                    VStack(spacing: 12) {
-                        Image(systemName: "tag.slash")
-                            .font(.system(size: 44))
-                            .foregroundStyle(Color.appMuted.opacity(0.4))
-                        Text("Нет данных")
-                            .font(.jb(15))
-                            .foregroundStyle(Color.appMuted)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 80)
+                    ErrorStateView(
+                        .empty(
+                            title: "Скидок пока нет",
+                            message: "Обновите раздел чуть позже",
+                            systemImage: "tag.slash"
+                        ),
+                        retry: { Task { await vm.refresh(cityId: cityStore.selectedCityId) } }
+                    )
+                    .padding(.top, 48)
                 } else {
+                    AppSectionHeader(
+                        title: "Все предложения",
+                        subtitle: "Отсортировано по выгоде",
+                        icon: "flame.fill",
+                        accent: Color.discountRed
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 10)
+
                     LazyVGrid(columns: gridColumns, spacing: 10) {
                         ForEach(vm.products) { product in
                             NavigationLink(value: product.uuid) {
                                 ProductCardWrapper(product: product)
                             }
                             .buttonStyle(.pressScale)
+                            .onAppear {
+                                guard product.uuid == vm.products.last?.uuid else { return }
+                                Task { await vm.load(cityId: cityStore.selectedCityId, append: true) }
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-
-                    // Sentinel — отдельный view внизу списка. Он получает .onAppear
-                    // только когда виден, причём ровно один. Это надёжнее чем вешать
-                    // onAppear на каждую карточку (та фигачит на каждом recycle).
-                    if !vm.products.isEmpty {
-                        Color.clear
-                            .frame(height: 1)
-                            .onAppear {
-                                Task { await vm.load(cityId: cityStore.selectedCityId, append: true) }
-                            }
-                    }
+                    .padding(.bottom, 8)
 
                     if vm.isLoading {
                         PaginationLoader()
                     }
                 }
+
+                Color.clear.frame(height: 150)
             }
             .background(Color.appBackground)
             .navigationBarTitleDisplayMode(.inline)
@@ -95,19 +95,8 @@ struct DiscountsView: View {
         }
     }
 
-    /// Среднюю скидку считаем по priceRange.savingsPercent или previousPrice/price.
-    private var avgDiscount: Int {
-        let percents: [Double] = vm.products.compactMap { p in
-            if let pct = p.priceRange?.savingsPercent, pct > 0 { return pct }
-            if let stores = p.stores,
-               let best = stores.filter({ $0.inStock }).min(by: { $0.price < $1.price }),
-               let prev = best.previousPrice, prev > best.price {
-                return ((prev - best.price) / prev) * 100
-            }
-            return nil
-        }
-        guard !percents.isEmpty else { return 0 }
-        return Int(percents.reduce(0, +) / Double(percents.count))
+    private var displayCount: Int {
+        vm.totalCount > 0 ? vm.totalCount : vm.products.count
     }
 
     private func discountsWord(_ n: Int) -> String {
@@ -118,24 +107,3 @@ struct DiscountsView: View {
         return "скидок"
     }
 }
-
-private struct DiscountStatPill: View {
-    let icon: String
-    let text: String
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 9, weight: .black))
-            Text(text)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 4)
-        .background(tint.opacity(0.12), in: Capsule())
-        .overlay(Capsule().stroke(tint.opacity(0.25), lineWidth: 0.6))
-    }
-}
-

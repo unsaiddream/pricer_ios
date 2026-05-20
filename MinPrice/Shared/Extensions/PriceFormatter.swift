@@ -2,8 +2,7 @@ import Foundation
 
 func formatPriceTg(_ value: Double) -> String {
     let intValue = Int(round(value))
-    // Группируем тысячи начиная с 1 000 — иначе "1455 тг" сливается в "тысячу четыре",
-    // плохо читается на ходу. С пробелом-разделителем "1 455 тг" — мгновенно ясно.
+    // Группируем тысячи начиная с 1 000: "1 455 ₸" читается быстрее, чем слитное число.
     if abs(intValue) >= 1_000 {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -11,9 +10,9 @@ func formatPriceTg(_ value: Double) -> String {
         formatter.maximumFractionDigits = 0
         formatter.usesGroupingSeparator = true
         let formatted = formatter.string(from: NSNumber(value: intValue)) ?? String(intValue)
-        return "\(formatted) тг"
+        return "\(formatted) ₸"
     }
-    return "\(intValue) тг"
+    return "\(intValue) ₸"
 }
 
 func formatPriceTg(_ value: Int) -> String {

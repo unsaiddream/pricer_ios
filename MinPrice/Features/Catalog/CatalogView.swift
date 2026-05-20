@@ -1,19 +1,16 @@
 import SwiftUI
-import Kingfisher
 
 private let catalogGridColumns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
 struct CatalogView: View {
     @EnvironmentObject var cityStore: CityStore
     @StateObject private var vm = CatalogViewModel()
-    @State private var brandSearchItem: BrandSearchItem? = nil
 
     var body: some View {
         NavigationStack {
             CategoryGridView(
                 categories: vm.categories,
-                onRefresh: { await vm.refreshCategories() },
-                onBrandTap: { brand in brandSearchItem = BrandSearchItem(brand: brand) }
+                onRefresh: { await vm.refreshCategories() }
             )
             .background(Color.appBackground)
             .navigationBarTitleDisplayMode(.inline)
@@ -27,52 +24,31 @@ struct CatalogView: View {
             .navigationDestination(for: String.self) { uuid in
                 ProductView(uuid: uuid)
             }
-            .fullScreenCover(item: $brandSearchItem) { item in
-                BrandProductsView(brand: item.brand)
-            }
         }
     }
 }
-
-// Запасной список популярных брендов — используется если RemoteConfig не пришёл.
-// Бэкенд может перезаписать через AppConfig.popularBrands.
-private let fallbackPopularBrands: [AppConfig.PopularBrand] = [
-    .init(name: "Coca-Cola",     emoji: "🥤", logoUrl: nil),
-    .init(name: "Rakhat",        emoji: "🍫", logoUrl: nil),
-    .init(name: "Lay's",         emoji: "🍟", logoUrl: nil),
-    .init(name: "Простоквашино", emoji: "🥛", logoUrl: nil),
-    .init(name: "Nescafé",       emoji: "☕", logoUrl: nil),
-    .init(name: "Lipton",        emoji: "🍵", logoUrl: nil),
-    .init(name: "Pepsi",         emoji: "🥤", logoUrl: nil),
-    .init(name: "Barilla",       emoji: "🍝", logoUrl: nil),
-]
 
 // MARK: - Category Grid
 
 private struct CategoryGridView: View {
     let categories: [Category]
     let onRefresh: () async -> Void
-    let onBrandTap: (String) -> Void
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
     var body: some View {
         ScrollView {
-            // Header — title + contextual subtitle
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 BrandTitle(text: "Каталог",
                            eyebrow: "Выбирайте по категориям")
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     if !categories.isEmpty {
-                        Text("\(categories.count) \(categoriesWord(categories.count))")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundStyle(Color.appPrimary)
+                        AppMetricPill(
+                            icon: "square.grid.2x2.fill",
+                            text: "\(categories.count) \(categoriesWord(categories.count))",
+                            tint: Color.appPrimary
+                        )
                     }
-                    Text("·")
-                        .foregroundStyle(Color.appMuted.opacity(0.5))
-                    Text("выбирайте категорию или бренд")
-                        .font(.system(size: 13, design: .rounded))
-                        .foregroundStyle(Color.appMuted)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -80,20 +56,12 @@ private struct CategoryGridView: View {
             .padding(.top, 8)
             .padding(.bottom, 14)
 
-            // Brand strip — quick entry into BrandProductsView
-            BrandStrip(onTap: onBrandTap)
-                .padding(.bottom, 20)
-
-            // Section label for categories
-            HStack(spacing: 10) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.appPrimary)
-                    .frame(width: 3, height: 16)
-                Text("Категории")
-                    .font(.jb(15, weight: .bold))
-                    .foregroundStyle(Color.appForeground)
-                Spacer()
-            }
+            AppSectionHeader(
+                title: "Категории",
+                subtitle: "Быстрый вход в разделы",
+                icon: "square.grid.2x2.fill",
+                accent: Color.appPrimary
+            )
             .padding(.horizontal, 16)
             .padding(.bottom, 10)
 
@@ -130,68 +98,6 @@ private struct CategoryGridView: View {
     }
 }
 
-// MARK: - Brand Strip
-
-private struct BrandStrip: View {
-    let onTap: (String) -> Void
-    @ObservedObject private var configStore = RemoteConfigStore.shared
-
-    /// Источник правды — RemoteConfig.popularBrands. Если бэкенд ничего не вернул,
-    /// используем встроенный fallback. Так бэк может в любой момент перетасовать
-    /// или добавить бренды без релиза приложения.
-    private var brands: [AppConfig.PopularBrand] {
-        if let remote = configStore.config.popularBrands, !remote.isEmpty {
-            return remote
-        }
-        return fallbackPopularBrands
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.discountRed)
-                    .frame(width: 3, height: 16)
-                Text("Популярные бренды")
-                    .font(.jb(15, weight: .bold))
-                    .foregroundStyle(Color.appForeground)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(brands, id: \.name) { item in
-                        Button { onTap(item.name) } label: {
-                            HStack(spacing: 7) {
-                                if let logo = item.logoUrl, let url = URL(string: logo) {
-                                    KFImage(url)
-                                        .downsampled(to: CGSize(width: 18, height: 18))
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: 18, height: 18)
-                                } else if let emoji = item.emoji {
-                                    Text(emoji)
-                                        .font(.system(size: 16))
-                                }
-                                Text(item.name)
-                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(Color.appForeground)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
-                            .background(Color.appCard, in: Capsule())
-                            .overlay(Capsule().stroke(Color.appBorder, lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-        }
-    }
-}
-
 private struct CategoryCard: View {
     let category: Category
     let color: Color
@@ -201,40 +107,45 @@ private struct CategoryCard: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            // Лёгкий цветной градиент-акцент в углу — без blur (blur на 30+ карточках лагает)
-            RadialGradient(
-                colors: [color.opacity(0.22), color.opacity(0.0)],
-                center: .bottomTrailing,
-                startRadius: 0,
-                endRadius: 90
-            )
-
-            VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(color.opacity(0.14))
+                Circle().stroke(color.opacity(0.28), lineWidth: 1)
                 Text(emoji)
-                    .font(.system(size: 40))
+                    .font(.system(size: 28))
+            }
+            .frame(width: 54, height: 54)
 
-                Spacer()
-
+            VStack(alignment: .leading, spacing: 4) {
                 Text(category.name)
-                    .font(.jb(12, weight: .semibold))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.appForeground)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text("Смотреть товары")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.appMuted)
+                    .lineLimit(1)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
         }
-        .frame(height: 120)
+        .padding(12)
+        .frame(height: 92)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.appCard)
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(color.opacity(0.22), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.appBorder, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .contentShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(color.opacity(0.95))
+                .frame(width: 4)
+                .padding(.vertical, 14)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func fallbackEmoji(for name: String) -> String {
@@ -266,7 +177,7 @@ private struct SkeletonCategoryGrid: View {
             ForEach(0..<8, id: \.self) { _ in
                 RoundedRectangle(cornerRadius: 18)
                     .fill(skeletonColor)
-                    .frame(height: 120)
+                    .frame(height: 92)
                     .shimmer()
             }
         }
@@ -287,6 +198,17 @@ private struct CatalogProductsView: View {
         VStack(spacing: 0) {
             // Search + Sort header
             VStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    AppSectionHeader(
+                        title: category.name,
+                        subtitle: vm.filteredProducts.isEmpty ? nil : "\(vm.filteredProducts.count) товаров",
+                        icon: "basket.fill",
+                        accent: Color.appPrimary
+                    )
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 2)
+
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 14))
@@ -339,12 +261,6 @@ private struct CatalogProductsView: View {
                             .animation(.easeInOut(duration: 0.15), value: vm.sort)
                         }
 
-                        if !vm.filteredProducts.isEmpty {
-                            Text("\(vm.filteredProducts.count) товаров")
-                                .font(.jb(12))
-                                .foregroundStyle(Color.appMuted)
-                                .padding(.leading, 4)
-                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 2)
@@ -383,19 +299,15 @@ private struct CatalogProductsView: View {
                                 ProductCardWrapper(product: product)
                             }
                             .buttonStyle(.pressScale)
+                            .onAppear {
+                                guard vm.searchQuery.isEmpty else { return }
+                                guard product.uuid == vm.filteredProducts.last?.uuid else { return }
+                                Task { await vm.loadMore(cityId: cityStore.selectedCityId) }
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 10)
-
-                    // Sentinel-триггер пагинации — один view внизу, не на каждой карточке.
-                    if !vm.filteredProducts.isEmpty && vm.searchQuery.isEmpty {
-                        Color.clear
-                            .frame(height: 1)
-                            .onAppear {
-                                Task { await vm.loadMore(cityId: cityStore.selectedCityId) }
-                            }
-                    }
 
                     if vm.isLoading {
                         PaginationLoader()

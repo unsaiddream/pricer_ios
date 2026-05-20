@@ -9,6 +9,7 @@ struct HomeView: View {
     @ObservedObject private var favStores = FavoriteStoresStore.shared
     @State private var showCitySelector = false
     @State private var showAbout = false
+    @State private var homeLoadTask: Task<Void, Never>?
     @AppStorage("isDarkMode") private var isDarkMode = false
 
     var body: some View {
@@ -20,12 +21,10 @@ struct HomeView: View {
                     // и автоматически прилипает ко всем product-запросам (через FavoriteStoresStore).
                     StoresFilterBar()
                         .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 16)
+                        .padding(.top, 10)
+                        .padding(.bottom, 12)
                         .onChange(of: favStores.selectedIds) { _ in
-                            // Перезагружаем главную при изменении набора магазинов —
-                            // деалы/скидки фильтруются на бэке по chain_ids.
-                            Task { await vm.load(cityId: cityStore.selectedCityId) }
+                            scheduleHomeReload(cityId: cityStore.selectedCityId, debounce: true)
                         }
 
                     if vm.isLoading {
@@ -36,25 +35,27 @@ struct HomeView: View {
                         // Показываем ErrorStateView с retry, иначе пользователь видит белый.
                         ErrorStateView(
                             vm.errorMessage != nil ? .networkError : .serverError,
-                            retry: { Task { await vm.load(cityId: cityStore.selectedCityId) } }
+                            retry: { scheduleHomeReload(cityId: cityStore.selectedCityId) }
                         )
                         .frame(minHeight: 400)
                     } else {
                         if let error = vm.errorMessage {
                             ErrorBanner(message: error) {
-                                Task { await vm.load(cityId: cityStore.selectedCityId) }
+                                scheduleHomeReload(cityId: cityStore.selectedCityId)
                             }
                             .padding(.horizontal, 16)
                             .padding(.bottom, 16)
                         }
 
                         if !vm.bestDeals.isEmpty {
-                            SectionHeader(title: "Выгодные предложения",
-                                          count: vm.bestDeals.count,
-                                          badge: .flame,
-                                          accent: Color.discountRed)
+                            SectionHeader(
+                                title: "Выгодные предложения",
+                                count: vm.bestDealsTotal ?? vm.bestDeals.count,
+                                icon: "flame.fill",
+                                accent: Color.discountRed
+                            )
                                 .padding(.horizontal, 16)
-                                .padding(.bottom, 14)
+                                .padding(.bottom, 10)
 
                             LazyVGrid(columns: gridColumns, spacing: 10) {
                                 ForEach(vm.bestDeals) { product in
@@ -62,19 +63,29 @@ struct HomeView: View {
                                         ProductCardWrapper(product: product)
                                     }
                                     .buttonStyle(.pressScale)
+                                    .onAppear {
+                                        guard product.uuid == vm.bestDeals.last?.uuid else { return }
+                                        Task { await vm.loadMoreBestDeals(cityId: cityStore.selectedCityId) }
+                                    }
                                 }
                             }
                             .padding(.horizontal, 16)
+
+                            if vm.isLoadingMoreBestDeals {
+                                PaginationLoader()
+                            }
                         }
 
                         if !vm.priceDrops.isEmpty {
-                            SectionHeader(title: "Снижение цен",
-                                          count: vm.priceDrops.count,
-                                          badge: .pill,
-                                          accent: Color.savingsGreen)
+                            SectionHeader(
+                                title: "Снижение цен",
+                                count: vm.priceDrops.count,
+                                icon: "chart.line.downtrend.xyaxis",
+                                accent: Color.savingsGreen
+                            )
                                 .padding(.horizontal, 16)
-                                .padding(.top, 28)
-                                .padding(.bottom, 14)
+                                .padding(.top, 20)
+                                .padding(.bottom, 10)
 
                             LazyVGrid(columns: gridColumns, spacing: 10) {
                                 ForEach(vm.priceDrops) { product in
@@ -82,9 +93,17 @@ struct HomeView: View {
                                         ProductCardWrapper(product: product)
                                     }
                                     .buttonStyle(.pressScale)
+                                    .onAppear {
+                                        guard product.uuid == vm.priceDrops.last?.uuid else { return }
+                                        Task { await vm.loadMorePriceDrops(cityId: cityStore.selectedCityId) }
+                                    }
                                 }
                             }
                             .padding(.horizontal, 16)
+
+                            if vm.isLoadingMorePriceDrops {
+                                PaginationLoader()
+                            }
                         }
                     }
                 }
@@ -102,24 +121,32 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 3) {
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) { isDarkMode.toggle() }
                         } label: {
                             Image(systemName: isDarkMode ? "sun.max.fill" : "moon.fill")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(isDarkMode ? Color.appPrimary : Color.appMuted)
-                                .frame(width: 32, height: 32)
-                                .background(.ultraThinMaterial, in: Circle())
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color.appPrimary)
+                                .frame(width: 28, height: 28)
+                                .background(Color.appPrimary.opacity(0.10), in: Circle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isDarkMode ? "Включить светлую тему" : "Включить тёмную тему")
+
                         Button { showAbout = true } label: {
                             Image(systemName: "info.circle")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(Color.appMuted)
-                                .frame(width: 32, height: 32)
-                                .background(.ultraThinMaterial, in: Circle())
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.appPrimary.opacity(0.78))
+                                .frame(width: 28, height: 28)
+                                .background(Color.appPrimary.opacity(0.08), in: Circle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("О приложении")
                     }
+                    .padding(4)
+                    .background(Color.appPrimary.opacity(0.08), in: Capsule())
+                    .overlay(Capsule().stroke(Color.appPrimary.opacity(0.16), lineWidth: 0.7))
                 }
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 6) {
@@ -137,14 +164,21 @@ struct HomeView: View {
                     Button {
                         showCitySelector = true
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Image(systemName: "location.fill")
-                                .font(.system(size: 11))
+                                .font(.system(size: 11, weight: .semibold))
                             Text(cityStore.selectedCity?.name ?? "Алматы")
-                                .font(.jb(13))
+                                .font(.jb(12))
+                                .lineLimit(1)
                         }
                         .foregroundStyle(Color.appPrimary)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(Color.appPrimary.opacity(0.08), in: Capsule())
+                        .overlay(Capsule().stroke(Color.appPrimary.opacity(0.16), lineWidth: 0.7))
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Выбрать город")
                 }
             }
             .sheet(isPresented: $showCitySelector) {
@@ -157,6 +191,7 @@ struct HomeView: View {
                 ProductView(uuid: uuid)
             }
             .refreshable {
+                homeLoadTask?.cancel()
                 await vm.load(cityId: cityStore.selectedCityId)
             }
         }
@@ -164,172 +199,45 @@ struct HomeView: View {
             await vm.load(cityId: cityStore.selectedCityId)
         }
         .onChange(of: cityStore.selectedCityId) { newId in
-            Task { await vm.load(cityId: newId) }
+            scheduleHomeReload(cityId: newId)
+        }
+        .onDisappear {
+            homeLoadTask?.cancel()
+        }
+    }
+
+    private func scheduleHomeReload(cityId: Int, debounce: Bool = false) {
+        homeLoadTask?.cancel()
+        homeLoadTask = Task {
+            if debounce {
+                try? await Task.sleep(nanoseconds: 450_000_000)
+                guard !Task.isCancelled else { return }
+            }
+            await vm.load(cityId: cityId)
         }
     }
 }
 
 // MARK: - Subviews
 
-private let categoryChipPalette: [Color] = [
-    .red, .orange, .green, .blue, .purple,
-    .pink, .teal, .indigo, .yellow, .mint, .cyan, .brown
-]
-
-private struct CategoryStrip: View {
-    let categories: [Category]
-    let selectedId: Int?
-    let onSelectAll: () -> Void
-    let onSelect: (Category) -> Void
-
-    private var isAllSelected: Bool { selectedId == nil }
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                // Кнопка «Все» — общий график по всем товарам
-                Button {
-                    onSelectAll()
-                } label: {
-                    VStack(spacing: 4) {
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    isAllSelected
-                                        ? AnyShapeStyle(LinearGradient.brandPrimary)
-                                        : AnyShapeStyle(Color.appPrimary.opacity(0.18))
-                                )
-                            Image(systemName: "square.grid.2x2.fill")
-                                .font(.system(size: 18, weight: .black))
-                                .foregroundStyle(isAllSelected ? .white : Color.appPrimary)
-                        }
-                        .frame(width: 52, height: 52)
-                        .overlay(
-                            Circle().stroke(
-                                isAllSelected ? Color.appPrimary.opacity(0.6) : Color.appPrimary.opacity(0.30),
-                                lineWidth: isAllSelected ? 1.5 : 1
-                            )
-                        )
-                        .shadow(
-                            color: isAllSelected ? Color.appPrimary.opacity(0.40) : .clear,
-                            radius: 8, x: 0, y: 3
-                        )
-
-                        Text("Все")
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
-                            .foregroundStyle(
-                                isAllSelected
-                                    ? AnyShapeStyle(LinearGradient.brandPrimary)
-                                    : AnyShapeStyle(Color.appPrimary)
-                            )
-                            .lineLimit(1)
-                            .frame(width: 60)
-                    }
-                }
-                .buttonStyle(.pressScale)
-
-                ForEach(Array(categories.enumerated()), id: \.element.id) { idx, cat in
-                    let color = categoryChipPalette[idx % categoryChipPalette.count]
-                    let isSelected = (selectedId == cat.id)
-
-                    Button {
-                        onSelect(cat)
-                    } label: {
-                        VStack(spacing: 4) {
-                            ZStack {
-                                Circle()
-                                    .fill(
-                                        isSelected
-                                            ? AnyShapeStyle(LinearGradient.brandPrimary)
-                                            : AnyShapeStyle(color.opacity(0.18))
-                                    )
-                                Text(cat.emoji ?? "🛍️")
-                                    .font(.system(size: 24))
-                            }
-                            .frame(width: 52, height: 52)
-                            .overlay(
-                                Circle().stroke(
-                                    isSelected ? Color.appPrimary.opacity(0.6) : color.opacity(0.3),
-                                    lineWidth: isSelected ? 1.5 : 1
-                                )
-                            )
-                            .shadow(
-                                color: isSelected ? Color.appPrimary.opacity(0.40) : .clear,
-                                radius: 8, x: 0, y: 3
-                            )
-
-                            Text(cat.name)
-                                .font(.system(size: 10, weight: isSelected ? .heavy : .medium, design: .rounded))
-                                .foregroundStyle(
-                                    isSelected
-                                        ? AnyShapeStyle(LinearGradient.brandPrimary)
-                                        : AnyShapeStyle(Color.appMuted)
-                                )
-                                .lineLimit(1)
-                                .frame(width: 60)
-                        }
-                    }
-                    .buttonStyle(.pressScale)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 4)
-        }
-    }
-}
-
-private struct HeroBanner: View {
-    private let stores: [String] = ["store_magnum", "store_arbuz", "store_airba_fresh", "store_small"]
-
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Сравнение цен")
-                    .font(.jb(15, weight: .bold))
-                    .foregroundStyle(Color.appForeground)
-                Text("Минимальная цена в 4 магазинах")
-                    .font(.jb(12))
-                    .foregroundStyle(Color.appMuted)
-            }
-            Spacer()
-            HStack(spacing: -8) {
-                ForEach(stores, id: \.self) { asset in
-                    ZStack {
-                        Circle().fill(.white)
-                        Image(asset)
-                            .resizable()
-                            .scaledToFit()
-                            .padding(4)
-                    }
-                    .frame(width: 28, height: 28)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.appCard, lineWidth: 2))
-                }
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appPrimary.opacity(0.15), lineWidth: 1))
-    }
-}
-
-/// Минималистичный section header — confident bold-текст + бейдж справа.
-/// Раньше был хайлайтер-strip под текстом (выглядел как наклеенный стикер).
-/// Теперь чисто: вес типографики делает работу сам, акцент только в badge.
 private struct SectionHeader: View {
-    enum BadgeStyle { case pill, flame }
-
     let title: String
     let count: Int?
-    var badge: BadgeStyle = .pill
+    var icon: String? = nil
     var accent: Color = .appPrimary
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(accent)
+                    .frame(width: 28, height: 28)
+                    .background(accent.opacity(0.12), in: Circle())
+            }
+
             Text(title)
-                .font(.system(size: 22, weight: .black, design: .rounded))
-                .kerning(-0.3)
+                .font(.system(size: 19, weight: .black, design: .rounded))
                 .foregroundStyle(Color.appForeground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
@@ -337,78 +245,28 @@ private struct SectionHeader: View {
             Spacer(minLength: 8)
 
             if let count {
-                switch badge {
-                case .flame:
-                    FlameBadge(count: count, accent: accent)
-                case .pill:
-                    countPill(count)
-                }
+                countPill(count)
             }
         }
     }
 
     private func countPill(_ count: Int) -> some View {
-        Text("\(count)")
-            .font(.system(size: 12, weight: .black, design: .rounded))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 9).padding(.vertical, 3)
-            .background {
-                ZStack {
-                    Capsule().fill(accent)
-                    Capsule().fill(LinearGradient(
-                        colors: [.white.opacity(0.28), .clear],
-                        startPoint: .top, endPoint: .center
-                    ))
-                }
-            }
-            .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.5))
-            .shadow(color: accent.opacity(0.40), radius: 5, x: 0, y: 2)
+        Text(compactCount(count))
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundStyle(accent)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(accent.opacity(0.11), in: Capsule())
+            .overlay(Capsule().stroke(accent.opacity(0.24), lineWidth: 0.7))
             .fixedSize()
     }
-}
 
-/// Бейдж-огонёк — SF Symbol flame.fill с числом, вписанным в "тело" пламени.
-/// Цвет огня — градиент orange → accent. Пламя слегка пульсирует.
-private struct FlameBadge: View {
-    let count: Int
-    let accent: Color
-
-    @State private var flicker = false
-
-    var body: some View {
-        ZStack {
-            // Тёплое свечение под пламенем — эффект тепла
-            Image(systemName: "flame.fill")
-                .symbolRenderingMode(.monochrome)
-                .font(.system(size: 32))
-                .foregroundStyle(accent.opacity(0.4))
-                .blur(radius: 7)
-
-            // Сам огонёк
-            Image(systemName: "flame.fill")
-                .symbolRenderingMode(.monochrome)
-                .font(.system(size: 26))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.orange, accent, Color.discountRedDeep],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .scaleEffect(y: flicker ? 1.05 : 0.97)
-
-            // Число белое, в нижней (широкой) части пламени
-            Text("\(count)")
-                .font(.system(size: 9, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.3), radius: 1, x: 0, y: 0.5)
-                .offset(y: 3)
-        }
-        .frame(width: 30, height: 30)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                flicker.toggle()
-            }
-        }
+    private func compactCount(_ count: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: count)) ?? "\(count)"
     }
 }
 
@@ -455,4 +313,3 @@ private struct SkeletonGrid: View {
         }
     }
 }
-

@@ -43,17 +43,7 @@ final class CatalogViewModel: ObservableObject {
     }
 
     private func discountPct(_ p: Product) -> Double {
-        if let stores = p.stores,
-           let best = stores.filter({ $0.inStock }).min(by: { $0.price < $1.price }),
-           let prev = best.previousPrice, prev > best.price {
-            return (prev - best.price) / prev * 100
-        }
-        if let stores = p.priceRange?.stores,
-           let best = stores.filter({ $0.inStock }).min(by: { $0.price < $1.price }),
-           let prev = best.previousPrice, prev > best.price {
-            return (prev - best.price) / prev * 100
-        }
-        return 0
+        p.meanMinDiscountPercent
     }
 
     func loadCategories() async {

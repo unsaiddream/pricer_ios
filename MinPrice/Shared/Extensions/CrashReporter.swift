@@ -29,7 +29,6 @@ enum CrashReporter {
             // Performance monitoring отключаем — у нас нет budget'а на трейсы
             // и они шумят. Только crashes/errors.
             options.tracesSampleRate = 0.0
-            options.profilesSampleRate = 0.0
 
             // Не отправляем PII по умолчанию (не имени, ни IP).
             options.sendDefaultPii = false
@@ -45,15 +44,19 @@ enum CrashReporter {
     /// Записать ошибку из Swift-кода. Не показывает alert, просто логирует.
     static func capture(_ error: Error, context: [String: Any] = [:]) {
         Log.error("CrashReporter.capture:", error, context)
-        SentrySDK.capture(error: error) { scope in
-            for (k, v) in context { scope.setExtra(value: v, key: k) }
+        if SentrySDK.isEnabled {
+            SentrySDK.capture(error: error) { scope in
+                for (k, v) in context { scope.setExtra(value: v, key: k) }
+            }
         }
     }
 
     static func captureMessage(_ message: String, level: SentryLevel = .info) {
         Log.debug("CrashReporter.message:", message)
-        SentrySDK.capture(message: message) { scope in
-            scope.setLevel(level)
+        if SentrySDK.isEnabled {
+            SentrySDK.capture(message: message) { scope in
+                scope.setLevel(level)
+            }
         }
     }
 
@@ -65,12 +68,14 @@ enum CrashReporter {
     ///
     /// Категории: `ui`, `nav`, `cart`, `network`, `analytics`.
     static func breadcrumb(_ message: String, category: String = "ui", data: [String: Any] = [:]) {
-        let crumb = Breadcrumb()
-        crumb.category = category
-        crumb.message = message
-        crumb.level = .info
-        if !data.isEmpty { crumb.data = data }
-        SentrySDK.addBreadcrumb(crumb)
+        if SentrySDK.isEnabled {
+            let crumb = Breadcrumb()
+            crumb.category = category
+            crumb.message = message
+            crumb.level = .info
+            if !data.isEmpty { crumb.data = data }
+            SentrySDK.addBreadcrumb(crumb)
+        }
         Log.debug("[\(category)] \(message)", data)
     }
 
@@ -79,19 +84,24 @@ enum CrashReporter {
     /// Открытие экрана — основа навигационной телеметрии.
     static func screen(_ name: String, data: [String: Any] = [:]) {
         breadcrumb("screen \(name)", category: "nav", data: data)
+        AppMetricaReporter.screen(name, data: data)
     }
 
     /// Действие пользователя — кнопка, тап, добавление в корзину и т.п.
     static func action(_ name: String, data: [String: Any] = [:]) {
         breadcrumb(name, category: "analytics", data: data)
+        AppMetricaReporter.action(name, data: data)
     }
 
     /// Прикрепляет user-id (guest UUID) к будущим event'ам, чтобы видеть
     /// сколько уникальных гостей затронул крэш. Без email/имени.
     static func setGuestUUID(_ uuid: String?) {
-        let user = User()
-        user.userId = uuid ?? "anonymous"
-        SentrySDK.setUser(user)
+        if SentrySDK.isEnabled {
+            let user = User()
+            user.userId = uuid ?? "anonymous"
+            SentrySDK.setUser(user)
+        }
+        AppMetricaReporter.setGuestUUID(uuid)
     }
 
     // MARK: - Helpers

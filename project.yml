@@ -11,7 +11,7 @@ settings:
     SWIFT_VERSION: "5.9"
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     PRODUCT_BUNDLE_IDENTIFIER: kz.minprice.app
-    MARKETING_VERSION: "1.0.0"
+    MARKETING_VERSION: "1.0.2"
     CURRENT_PROJECT_VERSION: 1
     DEVELOPMENT_TEAM: 9LZD54M75S
     CODE_SIGN_STYLE: Automatic
@@ -36,10 +36,14 @@ targets:
         # Info.plist получит "$(SENTRY_DSN)" и CrashReporter определит как
         # выключенный.
         SENTRY_DSN: ""
+        # AppMetrica API key — пусто по умолчанию (no-op), заполняется в CI/xcconfig.
+        APPMETRICA_API_KEY: "8f6dc012-7189-4dd8-9769-a329bb994bbb"
     dependencies:
       - package: Kingfisher
       - package: Sentry
         product: Sentry
+      - package: AppMetrica
+        product: AppMetricaCore
       - target: MinPriceWidgetsExtension
     scheme:
       testTargets:
@@ -61,7 +65,7 @@ targets:
         INFOPLIST_FILE: MinPriceWidgets/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: kz.minprice.app.MinPriceWidgets
         CODE_SIGN_ENTITLEMENTS: MinPriceWidgetsExtension.entitlements
-        MARKETING_VERSION: "1.0.0"
+        MARKETING_VERSION: "1.0.2"
         CURRENT_PROJECT_VERSION: 1
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         SKIP_INSTALL: YES
@@ -84,3 +88,6 @@ packages:
   Sentry:
     url: https://github.com/getsentry/sentry-cocoa
     from: 8.40.0
+  AppMetrica:
+    url: https://github.com/appmetrica/appmetrica-sdk-ios
+    from: 6.0.0

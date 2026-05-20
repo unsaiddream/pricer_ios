@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 
 // MARK: - Магазины (6 поддерживаемых сетей; идентификация по chain_slug)
 // Small/Galmart/Toimart разделяют один store_source = "wolt", поэтому
@@ -85,13 +84,6 @@ enum BasketPeriod: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Режим отображения
-
-enum BasketViewMode: String, CaseIterable {
-    case bars
-    case line
-}
-
 // MARK: - Модель строки графика
 
 struct StoreBasketColumn: Identifiable {
@@ -118,7 +110,6 @@ struct StoreBasketChart: View {
     let products: [Product]
 
     @State private var period: BasketPeriod = .now
-    @State private var viewMode: BasketViewMode = .bars
     @State private var showsFormula = false
     @State private var shareItem: BasketShareItem?
 
@@ -156,6 +147,14 @@ struct StoreBasketChart: View {
         summary?.coverageCount ?? cachedCoverageCount
     }
 
+    private var rankedColumns: [StoreBasketColumn] {
+        columns.sorted { lhs, rhs in
+            if lhs.hasData != rhs.hasData { return lhs.hasData && !rhs.hasData }
+            if lhs.honestyScore != rhs.honestyScore { return lhs.honestyScore > rhs.honestyScore }
+            return basketStoreLabel(lhs.source) < basketStoreLabel(rhs.source)
+        }
+    }
+
     /// Только для legacy-пути.
     private func recomputeCache() {
         guard summary == nil else { return }
@@ -164,7 +163,7 @@ struct StoreBasketChart: View {
         cachedCoverageCount = result.coverageCount
     }
 
-    // Высота столбика — Honesty Score (0..100), главная метрика.
+    // Заполнение строки — Honesty Score (0..100), главная метрика.
     private func barRatio(_ col: StoreBasketColumn) -> Double {
         guard col.hasData else { return 0 }
         let raw = col.honestyScore / 100  // 0..1
@@ -200,16 +199,8 @@ struct StoreBasketChart: View {
                         removal: .opacity
                     ))
             }
-            HStack(spacing: 8) {
-                periodSwitcher
-                viewModeToggle
-            }
-            Group {
-                switch viewMode {
-                case .bars: chartArea
-                case .line: lineChartArea
-                }
-            }
+            periodSwitcher
+            chartArea
         }
         .padding(16)
         .background {
@@ -225,7 +216,6 @@ struct StoreBasketChart: View {
                     lineWidth: 0.8
                 )
         )
-        .shadow(color: Color.appPrimary.opacity(0.18), radius: 18, x: 0, y: 6)
         .compositingGroup()
         .onAppear { if cachedColumns.isEmpty { recomputeCache() } }
         .onChange(of: products.map(\.uuid)) { _ in recomputeCache() }
@@ -244,9 +234,7 @@ struct StoreBasketChart: View {
             categoryEmoji: category?.emoji,
             columns: columns,
             coverageCount: coverageCount,
-            period: period,
-            viewMode: viewMode,
-            linePoints: linePoints
+            period: period
         )
         let renderer = ImageRenderer(content: card)
         renderer.scale = 3
@@ -260,10 +248,6 @@ struct StoreBasketChart: View {
         HStack(alignment: .center) {
             HStack(spacing: 8) {
                 ZStack {
-                    Circle()
-                        .fill(Color.appPrimary.opacity(0.40))
-                        .frame(width: 30, height: 30)
-                        .blur(radius: 8)
                     Circle()
                         .fill(
                             LinearGradient(
@@ -341,7 +325,6 @@ struct StoreBasketChart: View {
                     .clipShape(Capsule())
                 }
                 .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.6))
-                .shadow(color: savingsGreen.opacity(0.45), radius: 6, x: 0, y: 2)
             }
         }
     }
@@ -567,154 +550,23 @@ struct StoreBasketChart: View {
         }
     }
 
-    // MARK: View-mode toggle (bars / line)
-
-    private var viewModeToggle: some View {
-        HStack(spacing: 0) {
-            ForEach([BasketViewMode.bars, .line], id: \.self) { mode in
-                let isSelected = (viewMode == mode)
-                Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { viewMode = mode }
-                } label: {
-                    Image(systemName: mode == .bars ? "chart.bar.fill" : "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 11, weight: .black))
-                        .foregroundStyle(isSelected ? .white : .white.opacity(0.55))
-                        .frame(width: 34, height: 26)
-                        .background {
-                            if isSelected {
-                                LinearGradient(
-                                    colors: [
-                                        Color.appPrimaryLight,
-                                        Color.appPrimary,
-                                    ],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                )
-                                .clipShape(Capsule())
-                                .shadow(color: Color.appPrimary.opacity(0.35), radius: 5, x: 0, y: 2)
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(3)
-        .background {
-            Capsule().fill(.white.opacity(0.06))
-        }
-        .overlay(Capsule().strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
-    }
-
-    // MARK: Line chart (как на странице товара)
-
-    fileprivate struct LinePoint: Identifiable {
-        let id = UUID()
-        let source: String
-        let label: String
-        let date: Date
-        let price: Double
-    }
-
-    /// Точки для line-чарта. Приоритет — серверные (`summary.linePoints`),
-    /// иначе пересчёт на клиенте.
-    private var linePoints: [LinePoint] {
-        if let s = summary {
-            return s.linePoints.map {
-                LinePoint(source: $0.slug, label: basketStoreLabel($0.slug), date: $0.date, price: $0.price)
-            }
-        }
-        return StoreBasketChart.buildLinePoints(products: products, period: period)
-    }
-
-    private var lineChartArea: some View {
-        Chart {
-            ForEach(linePoints) { p in
-                LineMark(
-                    x: .value("Дата", p.date),
-                    y: .value("Цена", p.price),
-                    series: .value("Магазин", p.label)
-                )
-                .foregroundStyle(basketChartColor(p.source))
-                .lineStyle(StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
-                .interpolationMethod(.monotone)
-            }
-        }
-        .chartLegend(.hidden)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 3)) { _ in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [2, 3]))
-                    .foregroundStyle(.white.opacity(0.10))
-                AxisValueLabel(format: .dateTime.day().month(.abbreviated), centered: true)
-                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [2, 3]))
-                    .foregroundStyle(.white.opacity(0.10))
-                AxisValueLabel {
-                    if let v = value.as(Double.self) {
-                        Text(formatCompactPrice(v))
-                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.55))
-                            .monospacedDigit()
-                    }
-                }
-            }
-        }
-        .frame(height: 200)
-        .padding(.top, 4)
-        .overlay(alignment: .bottom) {
-            // Легенда — пилюли с цветами магазинов
-            HStack(spacing: 6) {
-                ForEach(columns) { col in
-                    if col.hasData {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(basketChartColor(col.source))
-                                .frame(width: 6, height: 6)
-                            Text(basketStoreLabel(col.source))
-                                .font(.system(size: 9, weight: .heavy, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.85))
-                                .lineLimit(1)
-                        }
-                        .padding(.horizontal, 6).padding(.vertical, 2.5)
-                        .background(Capsule().fill(.white.opacity(0.08)))
-                    }
-                }
-            }
-            .offset(y: 32)
-        }
-    }
-
-    private func formatCompactPrice(_ v: Double) -> String {
-        let intValue = Int(round(v))
-        let useGrouping = abs(intValue) >= 10_000
-        if useGrouping {
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            formatter.groupingSeparator = " "
-            formatter.maximumFractionDigits = 0
-            formatter.usesGroupingSeparator = true
-            let formatted = formatter.string(from: NSNumber(value: intValue)) ?? String(intValue)
-            return "\(formatted) тг"
-        }
-        return "\(intValue) тг"
-    }
-
-    // MARK: Chart (bars)
+    // MARK: Chart (rating)
 
     private var chartArea: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            ForEach(columns) { col in
-                BasketColumn(
+        VStack(spacing: 10) {
+            if let leader = rankedColumns.first(where: \.hasData) {
+                BestStoreSummary(column: leader)
+            }
+            ForEach(Array(rankedColumns.enumerated()), id: \.element.id) { index, col in
+                StoreRankRow(
+                    rank: index + 1,
                     column: col,
                     isLeader: col.source == leaderSource,
                     ratio: barRatio(col)
                 )
             }
         }
-        .frame(height: 220)
+        .padding(.top, 2)
     }
 
     private func productsWord(_ n: Int) -> String {
@@ -793,6 +645,8 @@ struct StoreBasketChart: View {
             guard let minPrice = prices.values.min(),
                   let maxPrice = prices.values.max(),
                   minPrice > 0 else { continue }
+            let meanPrice = prices.values.reduce(0, +) / Double(prices.count)
+            guard meanPrice > 0 else { continue }
 
             let range = maxPrice - minPrice
             let winners = prices.filter { $0.value == minPrice }.map(\.key)
@@ -817,7 +671,7 @@ struct StoreBasketChart: View {
                 scoreBuckets[src, default: []].append(normalized)
 
                 // Также копим переплату в % для метаданных
-                let overpay = (price - minPrice) / minPrice * 100
+                let overpay = (price - minPrice) / meanPrice * 100
                 overpayBuckets[src, default: []].append(overpay)
             }
         }
@@ -862,54 +716,184 @@ struct StoreBasketChart: View {
         return (cols, coverageCount)
     }
 
-    /// Точки для line-chart: 3 точки на магазин (старт периода, середина, сейчас).
-    /// Цены строятся из `previousPrice` / `price` товаров через те же эвристики.
-    fileprivate static func buildLinePoints(products: [Product], period: BasketPeriod) -> [LinePoint] {
-        // 1) Соберём для каждого магазина два списка: старые (previousPrice) и текущие (price).
-        var prevByStore: [String: [Double]] = [:]
-        var currByStore: [String: [Double]] = [:]
+}
 
-        func add(_ d: inout [String: [Double]], _ key: String, _ v: Double) {
-            if v > 0 { d[key, default: []].append(v) }
-        }
+// MARK: - Store ranking rows
 
-        for product in products {
-            for s in product.stores ?? [] {
-                guard let key = basketCanonicalSlug(slug: s.chainSlug, name: s.chainName, source: s.storeSource) else { continue }
-                add(&currByStore, key, s.price)
-                if let prev = s.previousPrice { add(&prevByStore, key, prev) }
+private struct BestStoreSummary: View {
+    let column: StoreBasketColumn
+
+    var body: some View {
+        HStack(spacing: 10) {
+            StoreLogoView(url: column.logoUrl, slug: column.source, source: column.source, size: 38)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .strokeBorder(.white.opacity(0.20), lineWidth: 0.6)
+                )
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Сейчас выгоднее всего")
+                    .font(.system(size: 10.5, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.savingsGreen)
+                    .kerning(0.3)
+                Text(basketStoreLabel(column.source))
+                    .font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                Text(summaryText)
+                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.56))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
-            for r in product.priceRange?.stores ?? [] {
-                guard let key = basketCanonicalSlug(slug: r.chainSlug, name: r.chainName, source: r.storeSource) else { continue }
-                add(&currByStore, key, r.price)
-                if let prev = r.previousPrice { add(&prevByStore, key, prev) }
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 1) {
+                Text("\(Int(column.honestyScore.rounded()))")
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.savingsGreenSoft, Color.savingsGreen, Color.savingsGreenDeep],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .monospacedDigit()
+                Text("из 100")
+                    .font(.system(size: 9, weight: .black, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.42))
             }
         }
-
-        // 2) Усредняем
-        func avg(_ a: [Double]) -> Double? { a.isEmpty ? nil : a.reduce(0, +) / Double(a.count) }
-
-        // 3) Даты: now, mid, anchor (anchorDaysAgo)
-        let now = Date()
-        let cal = Calendar.current
-        let anchor = cal.date(byAdding: .day, value: -period.anchorDaysAgo, to: now) ?? now
-        let mid = cal.date(byAdding: .day, value: -period.anchorDaysAgo / 2, to: now) ?? now
-
-        var result: [LinePoint] = []
-        for src in basketKnownSlugs {
-            let label = basketStoreLabel(src)
-            let curr = avg(currByStore[src] ?? [])
-            let prev = avg(prevByStore[src] ?? []) ?? curr
-            guard let currVal = curr else { continue }
-            let prevVal = prev ?? currVal
-            let midVal = (currVal + prevVal) / 2
-
-            result.append(LinePoint(source: src, label: label, date: anchor, price: prevVal))
-            result.append(LinePoint(source: src, label: label, date: mid,    price: midVal))
-            result.append(LinePoint(source: src, label: label, date: now,    price: currVal))
+        .padding(12)
+        .background {
+            LinearGradient(
+                colors: [Color.savingsGreen.opacity(0.16), .white.opacity(0.045)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        return result
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.savingsGreen.opacity(0.20), lineWidth: 0.7)
+        )
     }
+
+    private var summaryText: String {
+        guard column.coveredCount > 0 else { return "нет данных для сравнения" }
+        return "\(column.wins) из \(column.coveredCount) \(basketProductsWord(column.coveredCount)) дешевле всех"
+    }
+}
+
+private struct StoreRankRow: View {
+    let rank: Int
+    let column: StoreBasketColumn
+    let isLeader: Bool
+    let ratio: Double
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("\(rank)")
+                .font(.system(size: 11, weight: .black, design: .rounded))
+                .foregroundStyle(isLeader ? Color.savingsGreen : .white.opacity(0.45))
+                .frame(width: 18)
+                .monospacedDigit()
+
+            StoreLogoView(url: column.logoUrl, slug: column.source, source: column.source, size: 30)
+                .opacity(column.hasData ? 1 : 0.45)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Text(basketStoreLabel(column.source))
+                        .font(.system(size: 12.5, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white.opacity(column.hasData ? 0.92 : 0.38))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
+                    if isLeader {
+                        Text("MIN")
+                            .font(.system(size: 8.5, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.savingsGreen))
+                    }
+
+                    Spacer(minLength: 4)
+
+                    Text(scoreText)
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .foregroundStyle(column.hasData ? .white : .white.opacity(0.32))
+                        .monospacedDigit()
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(.white.opacity(0.06))
+                        if column.hasData {
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: isLeader
+                                            ? [Color.savingsGreenSoft, Color.savingsGreen, Color.savingsGreenDeep]
+                                            : [basketChartColor(column.source).opacity(0.95), basketChartColor(column.source).opacity(0.62)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: max(8, geo.size.width * ratio))
+                                .overlay(alignment: .trailing) {
+                                    Circle()
+                                        .fill(.white.opacity(0.75))
+                                        .frame(width: 5, height: 5)
+                                        .padding(.trailing, 4)
+                                }
+                        }
+                    }
+                }
+                .frame(height: 8)
+
+                Text(detailText)
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(column.hasData ? 0.48 : 0.30))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isLeader ? Color.savingsGreen.opacity(0.09) : .white.opacity(0.035))
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(isLeader ? Color.savingsGreen.opacity(0.22) : .white.opacity(0.07), lineWidth: 0.6)
+        )
+    }
+
+    private var scoreText: String {
+        column.hasData ? "\(Int(column.honestyScore.rounded()))/100" : "нет"
+    }
+
+    private var detailText: String {
+        guard column.hasData, column.coveredCount > 0 else { return "нет данных в этом разделе" }
+        let wins = "\(column.wins) из \(column.coveredCount) дешевле всех"
+        if column.overpayPercent >= 1 {
+            return "\(wins) · переплата \(Int(column.overpayPercent.rounded()))%"
+        }
+        return wins
+    }
+}
+
+private func basketProductsWord(_ n: Int) -> String {
+    let m10 = n % 10, m100 = n % 100
+    if m100 >= 11 && m100 <= 19 { return "товаров" }
+    if m10 == 1 { return "товара" }
+    return "товаров"
 }
 
 // MARK: - Single column (vertical bar)
@@ -1053,32 +1037,14 @@ private struct BasketColumn: View {
 
 private struct DarkChartBackground: View {
     var body: some View {
-        ZStack {
-            LinearGradient.chartDark
-            GeometryReader { geo in
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color.appPrimary.opacity(0.30), .clear],
-                            center: .center, startRadius: 0, endRadius: 110
-                        )
-                    )
-                    .frame(width: 200, height: 200)
-                    .offset(x: -60, y: -50)
-                    .blur(radius: 14)
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color.savingsGreen.opacity(0.28), .clear],
-                            center: .center, startRadius: 0, endRadius: 100
-                        )
-                    )
-                    .frame(width: 180, height: 180)
-                    .offset(x: geo.size.width - 80, y: geo.size.height - 80)
-                    .blur(radius: 16)
+        LinearGradient.chartDark
+            .overlay(alignment: .topTrailing) {
+                Color.savingsGreen.opacity(0.08)
+                    .frame(width: 140, height: 140)
+                    .clipShape(Circle())
+                    .offset(x: 44, y: -52)
             }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -1098,23 +1064,24 @@ private struct BasketShareCard: View {
     let columns: [StoreBasketColumn]
     let coverageCount: Int
     let period: BasketPeriod
-    let viewMode: BasketViewMode
-    let linePoints: [StoreBasketChart.LinePoint]
 
-    private var maxRatio: Double {
-        let max = columns.filter(\.hasData).map(\.winShare).max() ?? 1
-        return max
+    private var rankedColumns: [StoreBasketColumn] {
+        columns.sorted { lhs, rhs in
+            if lhs.hasData != rhs.hasData { return lhs.hasData && !rhs.hasData }
+            if lhs.honestyScore != rhs.honestyScore { return lhs.honestyScore > rhs.honestyScore }
+            return basketStoreLabel(lhs.source) < basketStoreLabel(rhs.source)
+        }
     }
 
     private func barRatio(_ col: StoreBasketColumn) -> Double {
         guard col.hasData else { return 0 }
-        let raw = col.winShare / 100
+        let raw = col.honestyScore / 100
         return Swift.max(0.06, raw)
     }
 
     private var leaderSource: String? {
         let valid = columns.filter(\.hasData)
-        guard let top = valid.max(by: { $0.winShare < $1.winShare }), top.winShare > 0 else { return nil }
+        guard let top = valid.max(by: { $0.honestyScore < $1.honestyScore }), top.honestyScore > 0 else { return nil }
         return top.source
     }
 
@@ -1175,11 +1142,7 @@ private struct BasketShareCard: View {
                 Spacer()
             }
 
-            // Body
-            switch viewMode {
-            case .bars: barsRender
-            case .line: linesRender
-            }
+            barsRender
 
             // Footer
             HStack {
@@ -1197,28 +1160,10 @@ private struct BasketShareCard: View {
         .background {
             ZStack {
                 LinearGradient.chartDark
-                GeometryReader { geo in
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.appPrimary.opacity(0.30), .clear],
-                                center: .center, startRadius: 0, endRadius: 110
-                            )
-                        )
-                        .frame(width: 200, height: 200)
-                        .offset(x: -60, y: -50)
-                        .blur(radius: 14)
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.savingsGreen.opacity(0.28), .clear],
-                                center: .center, startRadius: 0, endRadius: 100
-                            )
-                        )
-                        .frame(width: 180, height: 180)
-                        .offset(x: geo.size.width - 80, y: geo.size.height - 80)
-                        .blur(radius: 16)
-                }
+                Color.savingsGreen.opacity(0.08)
+                    .frame(width: 140, height: 140)
+                    .clipShape(Circle())
+                    .offset(x: 150, y: -80)
             }
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
@@ -1235,59 +1180,17 @@ private struct BasketShareCard: View {
     }
 
     private var barsRender: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            ForEach(columns) { col in
-                BasketColumn(
+        VStack(spacing: 9) {
+            ForEach(Array(rankedColumns.enumerated()), id: \.element.id) { index, col in
+                StoreRankRow(
+                    rank: index + 1,
                     column: col,
                     isLeader: col.source == leaderSource,
                     ratio: barRatio(col)
                 )
             }
         }
-        .frame(height: 240)
     }
-
-    @ViewBuilder
-    private var linesRender: some View {
-        Chart {
-            ForEach(linePoints) { p in
-                LineMark(
-                    x: .value("Дата", p.date),
-                    y: .value("Цена", p.price),
-                    series: .value("Магазин", p.label)
-                )
-                .foregroundStyle(basketShareLineColor(p.source))
-                .lineStyle(StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
-                .interpolationMethod(.monotone)
-            }
-        }
-        .chartLegend(.hidden)
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 3)) { _ in
-                AxisValueLabel(format: .dateTime.day().month(.abbreviated), centered: true)
-                    .font(.system(size: 9, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [2, 3]))
-                    .foregroundStyle(.white.opacity(0.10))
-                AxisValueLabel {
-                    if let v = value.as(Double.self) {
-                        Text(v >= 1000 ? "\(Int(v / 1000))k" : "\(Int(v))")
-                            .font(.system(size: 9, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.55))
-                    }
-                }
-            }
-        }
-        .frame(height: 240)
-    }
-}
-
-private func basketShareLineColor(_ source: String) -> Color {
-    BrandPalette.storeColor(for: source)
 }
 
 struct BasketSharePreviewSheet: View {

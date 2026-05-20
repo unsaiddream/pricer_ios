@@ -1,5 +1,5 @@
 import SwiftUI
-import Charts
+import UIKit
 import Kingfisher
 
 struct ProductView: View {
@@ -19,26 +19,19 @@ struct ProductView: View {
         ScrollView {
             if vm.isLoading {
                 SkeletonProductDetail()
+            } else if vm.error != nil, vm.product == nil {
+                ProductDetailError {
+                    Task { await vm.load(uuid: uuid, cityId: cityStore.selectedCityId) }
+                }
             } else if let product = vm.product {
-                VStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0) {
 
                     // Hero image
                     ZStack(alignment: .bottom) {
                         // Мягкое свечение-фон
                         ZStack {
-                            Color.white
-                            GeometryReader { geo in
-                                Circle()
-                                    .fill(
-                                        RadialGradient(
-                                            colors: [Color.appPrimary.opacity(0.10), .clear],
-                                            center: .center, startRadius: 0, endRadius: 140
-                                        )
-                                    )
-                                    .frame(width: 260, height: 260)
-                                    .offset(x: geo.size.width / 2 - 130, y: 30)
-                                    .blur(radius: 8)
-                            }
+                            Color.appCard
+                            Color.appPrimary.opacity(0.035)
                         }
                         .frame(height: 280)
 
@@ -62,7 +55,7 @@ struct ProductView: View {
                     .frame(height: 280)
                     .clipped()
 
-                    VStack(alignment: .leading, spacing: 22) {
+                    LazyVStack(alignment: .leading, spacing: 22) {
 
                         // Title + brand
                         VStack(alignment: .leading, spacing: 8) {
@@ -97,7 +90,6 @@ struct ProductView: View {
                                         .clipShape(Capsule())
                                     }
                                     .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.6))
-                                    .shadow(color: Color.appPrimary.opacity(0.40), radius: 6, x: 0, y: 2)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -109,9 +101,11 @@ struct ProductView: View {
                                 .lineSpacing(2)
                         }
 
+                        ProductMetaRow(product: product, range: product.priceRange)
+
                         // Price hero
                         if let range = product.priceRange {
-                            PriceHero(range: range)
+                            PriceHero(range: range, discountPercent: product.meanMinDiscountPercent)
                         }
 
                         // Store prices
@@ -169,7 +163,10 @@ struct ProductView: View {
         .navigationBarBackButtonHidden(true)
         .preference(key: HideBottomBarsKey.self, value: true)
         .safeAreaInset(edge: .bottom) {
-            ProductCartBar(added: addedToCart) {
+            ProductCartBar(
+                price: vm.product?.priceRange?.min ?? vm.product?.cheapestPrice,
+                added: addedToCart
+            ) {
                 guard !addedToCart else { return }
                 Task {
                     do {
@@ -196,7 +193,7 @@ struct ProductView: View {
         guard let product = vm.product else { return }
         let image = makeProductShareImage(product: product, productImage: loadedProductImage) ?? UIImage()
         let url = URL(string: "https://minprice.kz/products/\(product.uuid)/")
-        shareItem = ShareImageItem(image: image, url: url)
+        shareItem = ShareImageItem(image: image, url: url, productTitle: product.title)
     }
 }
 
@@ -213,17 +210,122 @@ private struct NavGlassButton: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: 38, height: 38)
-            .background(.ultraThinMaterial, in: Circle())
-            .overlay(Circle().stroke(Color.white.opacity(0.25), lineWidth: 0.5))
-            .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 3)
+            .background(Color.appCard.opacity(0.94), in: Circle())
+            .overlay(Circle().stroke(Color.appBorder.opacity(0.75), lineWidth: 0.7))
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Meta Row
+
+private struct ProductMetaRow: View {
+    let product: Product
+    let range: PriceRange?
+
+    private var discountPercent: Int {
+        Int(product.meanMinDiscountPercent.rounded())
+    }
+
+    private var storesCount: Int {
+        range?.stores.count ?? product.linkedStoresCount ?? product.stores?.count ?? 0
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if storesCount > 0 {
+                    DetailPill(icon: "storefront.fill", text: "\(storesCount) \(storesWord(storesCount))")
+                }
+                if let measure = measureLabel {
+                    DetailPill(icon: "scalemass.fill", text: measure)
+                }
+                if let packCount = product.packCount, packCount > 1 {
+                    DetailPill(icon: "shippingbox.fill", text: "\(packCount) шт")
+                }
+                if discountPercent >= 20 {
+                    DetailPill(icon: "flame.fill", text: "ХИТ", tint: Color.warningAmber)
+                }
+                if discountPercent > 0 {
+                    DetailPill(
+                        icon: "arrow.down.right",
+                        text: "-\(discountPercent)%",
+                        tint: Color.discountRed
+                    )
+                }
+            }
+        }
+    }
+
+    private var measureLabel: String? {
+        guard let qty = product.measureUnitQty?.value, qty > 0 else { return nil }
+        let qtyText = qty.rounded() == qty ? "\(Int(qty))" : String(format: "%.1f", qty)
+        let unit = normalizedUnit(product.measureUnitKind ?? product.measureUnit)
+        guard !unit.isEmpty else { return nil }
+        return "\(qtyText) \(unit)"
+    }
+
+    private func normalizedUnit(_ raw: String?) -> String {
+        switch raw?.lowercased() {
+        case "g", "gr", "gram", "grams": return "г"
+        case "kg": return "кг"
+        case "ml": return "мл"
+        case "l": return "л"
+        case "pcs", "pc", "piece", "шт": return "шт"
+        default: return raw ?? ""
+        }
+    }
+}
+
+private struct DetailPill: View {
+    let icon: String
+    let text: String
+    var tint: Color = .appPrimary
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .bold))
+            Text(text)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(tint.opacity(0.10), in: Capsule())
+        .overlay(Capsule().stroke(tint.opacity(0.20), lineWidth: 0.7))
+    }
+}
+
+private func storesWord(_ n: Int) -> String {
+    let m10 = n % 10, m100 = n % 100
+    if m100 >= 11 && m100 <= 19 { return "магазинов" }
+    if m10 == 1 { return "магазин" }
+    if m10 >= 2 && m10 <= 4 { return "магазина" }
+    return "магазинов"
+}
+
+private struct ProductDetailError: View {
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ErrorStateView(
+                .networkError,
+                retry: retry
+            )
+        }
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 420)
+        .padding(.horizontal, 20)
     }
 }
 
 // MARK: - Cart Bar
 
 private struct ProductCartBar: View {
+    let price: Double?
     let added: Bool
     let onAddToCart: () -> Void
 
@@ -232,7 +334,7 @@ private struct ProductCartBar: View {
             HStack(spacing: 8) {
                 Image(systemName: added ? "checkmark.circle.fill" : "cart.fill.badge.plus")
                     .font(.system(size: 17, weight: .black))
-                Text(added ? "Добавлено в корзину" : "В корзину")
+                Text(title)
                     .font(.system(size: 16, weight: .heavy, design: .rounded))
                     .kerning(0.2)
                     .contentTransition(.opacity)
@@ -262,7 +364,6 @@ private struct ProductCartBar: View {
                 .clipShape(Capsule())
             }
             .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.7))
-            .shadow(color: (added ? Color.savingsGreen : Color.appPrimary).opacity(0.45), radius: 14, x: 0, y: 6)
             .scaleEffect(added ? 0.97 : 1)
             .animation(.spring(response: 0.35, dampingFraction: 0.7), value: added)
         }
@@ -270,177 +371,97 @@ private struct ProductCartBar: View {
         .padding(.horizontal, 20)
         .padding(.bottom, 12)
     }
+
+    private var title: String {
+        if added { return "Добавлено в корзину" }
+        if let price { return "В корзину • \(formatPriceTg(price))" }
+        return "В корзину"
+    }
 }
 
 // MARK: - Price Hero
 
 private struct PriceHero: View {
     let range: PriceRange
+    let discountPercent: Double
 
     private var savingsPct: Int? {
-        guard let pct = range.savingsPercent, pct >= 1 else { return nil }
-        return Int(pct)
+        guard discountPercent >= 1 else { return nil }
+        return Int(discountPercent.rounded())
     }
 
     private var savingsAmount: Double? {
-        if let s = range.savings, s > 0 { return s }
         if range.avg > range.min { return range.avg - range.min }
         return nil
     }
 
     private var hasSaving: Bool { savingsPct != nil }
-
-    private var greenSoft: Color { Color.savingsGreenSoft }
-    private var greenDeep: Color { Color.savingsGreenDeep }
+    private var savingsText: String? {
+        guard let savingsAmount else { return nil }
+        return formatPriceTg(savingsAmount)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-
-            // ── Верхняя строка: лучшая цена + бейджи справа ──
-            HStack(alignment: .center, spacing: 6) {
-                HStack(spacing: 5) {
-                    Image(systemName: hasSaving ? "sparkles" : "tag.fill")
-                        .font(.system(size: 10, weight: .black))
-                        .foregroundStyle(Color.savingsGreen.opacity(0.85))
-                    Text(hasSaving ? "ЛУЧШАЯ ЦЕНА" : "ОТ")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .tracking(1.4)
-                        .foregroundStyle(Color.savingsGreen.opacity(0.85))
-                }
-
-                Spacer()
-
-                // ХИТ + скидка % — компактно справа
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 6) {
-                    if let pct = savingsPct, pct >= 20 {
-                        HStack(spacing: 3) {
-                            Image(systemName: "flame.fill")
-                                .font(.system(size: 8, weight: .black))
-                            Text("ХИТ")
-                                .font(.system(size: 9, weight: .black, design: .rounded))
-                                .kerning(0.6)
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background {
-                            ZStack {
-                                LinearGradient(
-                                    colors: [Color(red: 1.00, green: 0.55, blue: 0.20), Color(red: 0.95, green: 0.30, blue: 0.20)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                )
-                                LinearGradient(colors: [.white.opacity(0.30), .clear], startPoint: .top, endPoint: .center)
-                            }
-                            .clipShape(Capsule())
-                        }
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
-                        .shadow(color: Color(red: 0.95, green: 0.40, blue: 0.20).opacity(0.45), radius: 5, x: 0, y: 2)
-                    }
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 11, weight: .black))
+                    Text(hasSaving ? "Лучшая цена" : "Цена от")
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                }
+                .foregroundStyle(Color.savingsGreenDeep)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6.5)
+                .background(Color.savingsGreen.opacity(0.13), in: Capsule())
 
-                    if let pct = savingsPct {
-                        HStack(spacing: 2) {
-                            Image(systemName: "arrow.down.right")
-                                .font(.system(size: 10, weight: .black))
-                            Text("\(pct)%")
-                                .font(.system(size: 15, weight: .black, design: .rounded))
+                if let savingsText {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 10, weight: .black))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("экономия")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.appMuted)
+                            Text(savingsText)
+                                .font(.system(size: 17, weight: .black, design: .rounded))
+                                .foregroundStyle(Color.savingsGreenDeep)
+                                .monospacedDigit()
                         }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 11).padding(.vertical, 5)
-                        .background {
-                            ZStack {
-                                LinearGradient(
-                                    colors: [Color.discountRed.opacity(0.95), Color.discountRedDeep],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                )
-                                LinearGradient(colors: [.white.opacity(0.30), .clear], startPoint: .top, endPoint: .center)
-                            }
-                            .clipShape(Capsule())
-                        }
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.6))
-                        .shadow(color: Color.discountRed.opacity(0.40), radius: 7, x: 0, y: 3)
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            // ── Hero price — большая, центральная ──
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(formatPriceNumber(range.min))
-                    .font(.system(size: 52, weight: .black, design: .rounded))
-                    .kerning(-1.0)
+                    .font(.system(size: 68, weight: .black, design: .rounded))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [greenSoft, Color.savingsGreen, greenDeep],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
+                            colors: [Color.savingsGreenSoft, Color.savingsGreen, Color.savingsGreenDeep],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
                     )
-                    .shadow(color: Color.savingsGreen.opacity(hasSaving ? 0.40 : 0.20), radius: 14, x: 0, y: 0)
                     .contentTransition(.numericText())
                     .animation(.spring(response: 0.45, dampingFraction: 0.75), value: range.min)
                     .monospacedDigit()
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.45)
 
-                Text("тг")
-                    .font(.system(size: 20, weight: .black, design: .rounded))
-                    .foregroundStyle(Color.savingsGreen.opacity(0.65))
-
-                Spacer(minLength: 0)
+                Text("₸")
+                    .font(.system(size: 26, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.savingsGreen.opacity(0.72))
             }
-
-            // ── Нижняя полоса: «обычно» / «выгода» ──
-            if hasSaving {
-                HStack(spacing: 8) {
-                    // Обычно
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 9, weight: .black))
-                            .foregroundStyle(Color.appMuted)
-                        Text("обычно")
-                            .font(.system(size: 11, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Color.appMuted)
-                        Text(formatPriceTg(range.avg))
-                            .font(.system(size: 11, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Color.appForeground.opacity(0.65))
-                            .strikethrough(true, color: Color.appMuted.opacity(0.5))
-                            .monospacedDigit()
-                    }
-                    .padding(.horizontal, 9).padding(.vertical, 5)
-                    .background(Color.appMuted.opacity(0.10), in: Capsule())
-
-                    // Выгода
-                    if let saving = savingsAmount {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 9, weight: .black))
-                            Text("экономия")
-                                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                            Text(formatPriceTg(saving))
-                                .font(.system(size: 11, weight: .black, design: .rounded))
-                                .monospacedDigit()
-                        }
-                        .foregroundStyle(Color.savingsGreenDeep)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background {
-                            LinearGradient(
-                                colors: [greenSoft.opacity(0.25), Color.savingsGreen.opacity(0.15)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            )
-                            .clipShape(Capsule())
-                        }
-                        .overlay(Capsule().strokeBorder(Color.savingsGreen.opacity(0.30), lineWidth: 0.6))
-                    }
-                    Spacer(minLength: 0)
-                }
-            }
+            .layoutPriority(1)
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 20)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 22)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             ZStack {
-                // Многослойный фон: appCard + двойной радиальный glow + тонкий бирюзовый акцент
                 Color.appCard
-
                 LinearGradient(
                     colors: [
                         Color.savingsGreen.opacity(hasSaving ? 0.16 : 0.10),
@@ -450,43 +471,16 @@ private struct PriceHero: View {
                     startPoint: .topTrailing, endPoint: .bottomLeading
                 )
 
-                GeometryReader { geo in
-                    // Главный зелёный glow в правом верхнем
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.savingsGreen.opacity(0.32), .clear],
-                                center: .center, startRadius: 0, endRadius: 110
-                            )
-                        )
-                        .frame(width: 200, height: 200)
-                        .offset(x: geo.size.width - 90, y: -70)
-                        .blur(radius: 8)
-
-                    // Бирюзовый glow в левом нижнем (только при скидке)
-                    if hasSaving {
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [Color.appPrimary.opacity(0.22), .clear],
-                                    center: .center, startRadius: 0, endRadius: 90
-                                )
-                            )
-                            .frame(width: 160, height: 160)
-                            .offset(x: -60, y: geo.size.height - 60)
-                            .blur(radius: 10)
-                    }
-                }
+                HeroLogoPattern()
             }
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .overlay(
-            // Двойная обводка — внешний градиент + внутренний шиммер
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [
-                            Color.savingsGreen.opacity(0.55),
+                            Color.savingsGreen.opacity(0.38),
                             Color.savingsGreen.opacity(0.20),
                             Color.appPrimary.opacity(hasSaving ? 0.25 : 0.0),
                         ],
@@ -495,18 +489,51 @@ private struct PriceHero: View {
                     lineWidth: 1.2
                 )
         )
-        .shadow(color: Color.savingsGreen.opacity(hasSaving ? 0.20 : 0.10), radius: 18, x: 0, y: 8)
         .animation(.easeInOut(duration: 0.25), value: savingsPct)
     }
-
 }
 
+private struct HeroLogoPattern: View {
+    private let items: [(CGFloat, CGFloat, CGFloat, Double, Double)] = [
+        (0.06, 0.12, 34, 0.120, -18),
+        (0.22, 0.74, 28, 0.095, 14),
+        (0.42, 0.20, 24, 0.085, -10),
+        (0.55, 0.82, 30, 0.095, 20),
+        (0.72, 0.17, 36, 0.110, 16),
+        (0.88, 0.66, 26, 0.085, -14),
+        (0.96, 0.20, 30, 0.078, 22),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            ForEach(items.indices, id: \.self) { idx in
+                let item = items[idx]
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: item.2, height: item.2)
+                    .opacity(item.3)
+                    .rotationEffect(.degrees(item.4))
+                    .position(x: geo.size.width * item.0, y: geo.size.height * item.1)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
 
 // MARK: - Store Prices Section
 
 private struct StorePricesSection: View {
     let stores: [PriceRangeStore]
-    private var minPrice: Double { stores.map(\.price).min() ?? 0 }
+    private var sortedStores: [PriceRangeStore] {
+        stores.sorted {
+            if $0.inStock != $1.inStock { return $0.inStock && !$1.inStock }
+            return $0.price < $1.price
+        }
+    }
+    private var minPrice: Double {
+        stores.filter(\.inStock).map(\.price).min() ?? stores.map(\.price).min() ?? 0
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -527,8 +554,8 @@ private struct StorePricesSection: View {
             }
 
             VStack(spacing: 0) {
-                ForEach(Array(stores.enumerated()), id: \.offset) { idx, store in
-                    let isBest = store.price == minPrice
+                ForEach(Array(sortedStores.enumerated()), id: \.offset) { idx, store in
+                    let isBest = store.inStock && abs(store.price - minPrice) < 0.01
 
                     HStack(spacing: 12) {
                         StoreLogoView(url: store.logoURL, slug: store.chainSlug, source: store.storeSource, size: 36)
@@ -563,7 +590,6 @@ private struct StorePricesSection: View {
                                             .clipShape(Capsule())
                                         }
                                         .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
-                                        .shadow(color: Color.appPrimary.opacity(0.40), radius: 5, x: 0, y: 2)
                                 }
                             }
                             if !store.inStock {
@@ -625,7 +651,7 @@ private struct StorePricesSection: View {
                                         )
                                     )
                                     .shadow(
-                                        color: isBest ? Color.appPrimary.opacity(0.35) : .clear,
+                                        color: .clear,
                                         radius: 5, x: 0, y: 2
                                     )
                             }
@@ -643,18 +669,6 @@ private struct StorePricesSection: View {
                                     ],
                                     startPoint: .topLeading, endPoint: .bottomTrailing
                                 )
-                                GeometryReader { geo in
-                                    Circle()
-                                        .fill(
-                                            RadialGradient(
-                                                colors: [Color.appPrimary.opacity(0.18), .clear],
-                                                center: .center, startRadius: 0, endRadius: 60
-                                            )
-                                        )
-                                        .frame(width: 110, height: 110)
-                                        .offset(x: -30, y: geo.size.height / 2 - 55)
-                                        .blur(radius: 4)
-                                }
                             }
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .overlay(
@@ -670,14 +684,13 @@ private struct StorePricesSection: View {
                         }
                     }
 
-                    if idx < stores.count - 1 {
+                    if idx < sortedStores.count - 1 {
                         Divider().overlay(Color.appBorder).padding(.horizontal, 14)
                     }
                 }
             }
             .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appBorder, lineWidth: 1))
-            .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
         }
     }
 }
@@ -739,71 +752,220 @@ private func chartColor(_ source: String) -> Color {
 }
 
 private struct ChartPoint: Identifiable {
-    let id = UUID()
+    var id: String { "\(chainSource)-\(Int(date.timeIntervalSince1970))-\(Int(price.rounded()))" }
     let store: String
     let chainSource: String
     let date: Date
     let price: Double
 }
 
-private struct PriceHistoryChart: View {
-    let history: PriceHistoryResponse
+private struct PriceAxisLabel: Identifiable {
+    let id: String
+    let value: Double
+    let text: String
+}
 
-    // Кэш — пересчитывается один раз при появлении или смене history
-    @State private var dailyByStore: [(label: String, source: String, points: [ChartPoint])] = []
+private struct DateAxisLabel: Identifiable {
+    let id: String
+    let date: Date
+    let text: String
+}
 
-    private static func buildDailyByStore(_ history: PriceHistoryResponse) -> [(label: String, source: String, points: [ChartPoint])] {
+private struct PriceHistoryChartModel {
+    let bestPoints: [ChartPoint]
+    let renderPoints: [ChartPoint]
+    let periodMin: ChartPoint?
+    let periodMax: Double?
+    let currentPoint: ChartPoint?
+    let dropPercent: Int?
+    let savingsAmount: Double?
+    let minDate: Date
+    let maxDate: Date
+    let minPrice: Double
+    let maxPrice: Double
+    let yLabels: [PriceAxisLabel]
+    let xLabels: [DateAxisLabel]
+
+    var isEmpty: Bool { bestPoints.isEmpty }
+    var currentMin: Double? { currentPoint?.price }
+
+    static func build(history: PriceHistoryResponse) -> PriceHistoryChartModel {
         let cal = Calendar.current
-        return history.stores.map { store in
+        var bestByDay: [Date: ChartPoint] = [:]
+
+        for store in history.stores {
             let label = formatStoreName(store.chainSource)
             let grouped = Dictionary(
                 grouping: store.prices.compactMap { p -> (Date, Double)? in
-                    guard let d = p.parsedDate else { return nil }
+                    guard let d = PriceHistoryDateParser.parse(p.datetime) else { return nil }
                     return (cal.startOfDay(for: d), p.price)
                 },
                 by: { $0.0 }
             )
-            let pts = grouped.map { (day, items) in
-                ChartPoint(
+            for (day, items) in grouped {
+                guard let dayMin = items.map(\.1).min(), dayMin > 0 else { continue }
+                let point = ChartPoint(
                     store: label,
                     chainSource: store.chainSource,
                     date: day,
-                    price: items.map(\.1).min() ?? 0
+                    price: dayMin
                 )
+                if let existing = bestByDay[day] {
+                    if point.price < existing.price {
+                        bestByDay[day] = point
+                    }
+                } else {
+                    bestByDay[day] = point
+                }
             }
-            .sorted(by: { $0.date < $1.date })
-            return (label, store.chainSource, pts)
+        }
+
+        let allPoints = bestByDay.values.sorted(by: { $0.date < $1.date })
+        let renderPoints = Self.downsample(allPoints, maxCount: 48)
+        let fallbackDate = Date()
+        let minDate = allPoints.map(\.date).min() ?? fallbackDate
+        let maxDate = allPoints.map(\.date).max() ?? minDate
+        let rawMinPrice = allPoints.map(\.price).min() ?? 0
+        let rawMaxPrice = allPoints.map(\.price).max() ?? max(rawMinPrice, 1)
+        let pricePadding = max((rawMaxPrice - rawMinPrice) * 0.10, rawMaxPrice > rawMinPrice ? 1 : max(rawMaxPrice * 0.08, 1))
+        let chartMinPrice = max(0, rawMinPrice - pricePadding)
+        let chartMaxPrice = rawMaxPrice + pricePadding
+        let periodMin = allPoints.min(by: { $0.price < $1.price })
+        let periodMax = allPoints.map(\.price).max()
+        let currentPoint = allPoints.last
+
+        let dropPercent: Int? = {
+            guard let high = periodMax, let cur = currentPoint?.price, high > cur else { return nil }
+            let pct = Int(((high - cur) / high) * 100)
+            return pct >= 1 ? pct : nil
+        }()
+
+        let savingsAmount: Double? = {
+            guard let high = periodMax, let cur = currentPoint?.price, high > cur else { return nil }
+            return high - cur
+        }()
+
+        return PriceHistoryChartModel(
+            bestPoints: allPoints,
+            renderPoints: renderPoints,
+            periodMin: periodMin,
+            periodMax: periodMax,
+            currentPoint: currentPoint,
+            dropPercent: dropPercent,
+            savingsAmount: savingsAmount,
+            minDate: minDate,
+            maxDate: maxDate,
+            minPrice: chartMinPrice,
+            maxPrice: chartMaxPrice,
+            yLabels: Self.makeYLabels(min: chartMinPrice, max: chartMaxPrice),
+            xLabels: Self.makeXLabels(min: minDate, max: maxDate)
+        )
+    }
+
+    private static func makeYLabels(min: Double, max: Double) -> [PriceAxisLabel] {
+        guard max > min else {
+            return [PriceAxisLabel(id: "single-y", value: min, text: formatCompactPrice(min))]
+        }
+        return [0.0, 0.5, 1.0].map { ratio in
+            let value = min + (max - min) * ratio
+            return PriceAxisLabel(
+                id: "y-\(ratio)",
+                value: value,
+                text: formatCompactPrice(value)
+            )
         }
     }
 
-    private var allPoints: [ChartPoint] {
-        dailyByStore.flatMap(\.points)
+    private static func makeXLabels(min: Date, max: Date) -> [DateAxisLabel] {
+        let span = max.timeIntervalSince(min)
+        guard span > 0 else {
+            return [DateAxisLabel(id: "single-x", date: min, text: PriceHistoryDateFormatter.short(min))]
+        }
+        return [0.0, 0.5, 1.0].map { ratio in
+            let date = min.addingTimeInterval(span * ratio)
+            return DateAxisLabel(
+                id: "x-\(ratio)",
+                date: date,
+                text: PriceHistoryDateFormatter.short(date)
+            )
+        }
     }
 
-    private var visibleStores: [(name: String, source: String)] {
-        var seen = Set<String>()
-        var result: [(name: String, source: String)] = []
-        for s in history.stores {
-            let name = formatStoreName(s.chainSource)
-            if seen.insert(name).inserted {
-                result.append((name, s.chainSource))
+    private static func downsample(_ points: [ChartPoint], maxCount: Int) -> [ChartPoint] {
+        guard points.count > maxCount, maxCount >= 8 else { return points }
+        let first = points[0]
+        let last = points[points.count - 1]
+        let bucketSize = Double(points.count - 2) / Double(maxCount - 2)
+        var sampled: [ChartPoint] = [first]
+
+        for bucket in 0..<(maxCount - 2) {
+            let start = 1 + Int(Double(bucket) * bucketSize)
+            let end = min(points.count - 1, 1 + Int(Double(bucket + 1) * bucketSize))
+            guard start < end else { continue }
+            let slice = points[start..<end]
+            let picked = slice.min(by: { $0.price < $1.price }) ?? points[start]
+            if picked.id != sampled.last?.id {
+                sampled.append(picked)
             }
         }
-        return result
+
+        if sampled.last?.id != last.id {
+            sampled.append(last)
+        }
+        return sampled.sorted(by: { $0.date < $1.date })
+    }
+}
+
+private enum PriceHistoryDateParser {
+    private static let fractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let internet: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    static func parse(_ value: String) -> Date? {
+        fractional.date(from: value) ?? internet.date(from: value)
+    }
+}
+
+private enum PriceHistoryDateFormatter {
+    private static let formatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.setLocalizedDateFormatFromTemplate("dMMM")
+        return formatter
+    }()
+
+    static func short(_ date: Date) -> String {
+        formatter.string(from: date)
+    }
+}
+
+private struct PriceHistoryChart: View {
+    let history: PriceHistoryResponse
+    @State private var model: PriceHistoryChartModel
+    @State private var modelKey: String
+
+    init(history: PriceHistoryResponse) {
+        self.history = history
+        let key = Self.makeModelKey(history)
+        _model = State(initialValue: PriceHistoryChartModel.build(history: history))
+        _modelKey = State(initialValue: key)
     }
 
-    private var periodMin: ChartPoint? { allPoints.min(by: { $0.price < $1.price }) }
-    private var periodMax: Double? { allPoints.map(\.price).max() }
-    private var currentMin: Double? {
-        guard let latest = allPoints.map(\.date).max() else { return nil }
-        return allPoints.filter { $0.date == latest }.map(\.price).min()
-            ?? allPoints.sorted(by: { $0.date > $1.date }).first?.price
-    }
-
-    private var dropPercent: Int? {
-        guard let high = periodMax, let cur = currentMin, high > cur else { return nil }
-        let pct = Int(((high - cur) / high) * 100)
-        return pct >= 1 ? pct : nil
+    private static func makeModelKey(_ history: PriceHistoryResponse) -> String {
+        let storesKey = history.stores
+            .map { store in
+                "\(store.storeId):\(store.prices.count):\(store.prices.last?.datetime ?? "")"
+            }
+            .joined(separator: "|")
+        return "\(history.productUuid)-\(history.days)-\(storesKey)"
     }
 
     private var greenSoft: Color { Color.savingsGreenSoft }
@@ -815,10 +977,6 @@ private struct PriceHistoryChart: View {
             HStack(alignment: .center) {
                 HStack(spacing: 8) {
                     ZStack {
-                        Circle()
-                            .fill(Color.appPrimary.opacity(0.40))
-                            .frame(width: 30, height: 30)
-                            .blur(radius: 8)
                         Circle()
                             .fill(
                                 LinearGradient(
@@ -834,19 +992,21 @@ private struct PriceHistoryChart: View {
                     }
 
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("История цен")
+                        Text("Динамика лучшей цены")
                             .font(.system(size: 15, weight: .heavy, design: .rounded))
                             .foregroundStyle(.white)
-                        Text("за \(history.days) \(daysWord(history.days))")
+                        Text("минимум среди магазинов за \(history.days) \(daysWord(history.days))")
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white.opacity(0.55))
                             .kerning(0.3)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
                     }
                 }
 
                 Spacer()
 
-                if let pct = dropPercent {
+                if let pct = model.dropPercent {
                     HStack(spacing: 2) {
                         Image(systemName: "arrow.down.right")
                             .font(.system(size: 10, weight: .black))
@@ -869,21 +1029,20 @@ private struct PriceHistoryChart: View {
                         .clipShape(Capsule())
                     }
                     .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.6))
-                    .shadow(color: Color.savingsGreen.opacity(0.45), radius: 6, x: 0, y: 2)
                 }
             }
 
             // KPI strip
             HStack(spacing: 8) {
-                if let cur = currentMin {
+                if let cur = model.currentPoint?.price {
                     KPICell(
-                        label: "СЕЙЧАС",
+                        label: "ЛУЧШАЯ",
                         value: cur,
                         gradient: [greenSoft, Color.savingsGreen, greenDeep],
                         glowColor: Color.savingsGreen
                     )
                 }
-                if let min = periodMin?.price, let cur = currentMin, min < cur {
+                if let min = model.periodMin?.price, let cur = model.currentPoint?.price, min < cur {
                     KPICell(
                         label: "МИНИМУМ",
                         value: min,
@@ -895,7 +1054,7 @@ private struct PriceHistoryChart: View {
                         glowColor: Color.appPrimary
                     )
                 }
-                if let max = periodMax {
+                if let max = model.periodMax {
                     KPICell(
                         label: "МАКСИМУМ",
                         value: max,
@@ -909,60 +1068,50 @@ private struct PriceHistoryChart: View {
                 }
             }
 
-            // Chart
-            chartBody
-                .frame(height: 190)
-
-            // Legend pills
-            if visibleStores.count > 1 {
-                FlowLegend(stores: visibleStores)
-                    .padding(.top, 6)
+            if let point = model.currentPoint {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(chartColor(point.chainSource))
+                        .frame(width: 7, height: 7)
+                    Text("Сейчас дешевле всего в \(point.store)")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Spacer(minLength: 4)
+                    if let savings = model.savingsAmount, savings >= 1 {
+                        Text("экономия \(formatCompactPrice(savings))")
+                            .font(.system(size: 10.5, weight: .black, design: .rounded))
+                            .foregroundStyle(Color.savingsGreen)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Capsule().fill(.white.opacity(0.06)))
+                .overlay(Capsule().strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
             }
+
+            // Chart
+            LightweightPriceChart(model: model)
+                .frame(height: 190)
         }
-        .task(id: history.stores.count) {
-            dailyByStore = Self.buildDailyByStore(history)
+        .onChange(of: Self.makeModelKey(history)) { newKey in
+            guard newKey != modelKey else { return }
+            modelKey = newKey
+            model = PriceHistoryChartModel.build(history: history)
         }
         .padding(16)
         .background {
-            ZStack {
-                LinearGradient.chartDark
-                GeometryReader { geo in
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.appPrimary.opacity(0.30), .clear],
-                                center: .center, startRadius: 0, endRadius: 110
-                            )
-                        )
-                        .frame(width: 200, height: 200)
-                        .offset(x: -60, y: -50)
-                        .blur(radius: 14)
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.savingsGreen.opacity(0.28), .clear],
-                                center: .center, startRadius: 0, endRadius: 100
-                            )
-                        )
-                        .frame(width: 180, height: 180)
-                        .offset(x: geo.size.width - 80, y: geo.size.height - 80)
-                        .blur(radius: 16)
+            LinearGradient.chartDark
+                .overlay(alignment: .topTrailing) {
+                    Color.savingsGreen.opacity(0.08)
+                        .frame(width: 140, height: 140)
+                        .clipShape(Circle())
+                        .offset(x: 44, y: -52)
                 }
-                // Тонкая решётка
-                GeometryReader { geo in
-                    Path { path in
-                        let step: CGFloat = 28
-                        var x: CGFloat = 0
-                        while x < geo.size.width {
-                            path.move(to: CGPoint(x: x, y: 0))
-                            path.addLine(to: CGPoint(x: x, y: geo.size.height))
-                            x += step
-                        }
-                    }
-                    .stroke(Color.white.opacity(0.025), lineWidth: 0.5)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -974,96 +1123,6 @@ private struct PriceHistoryChart: View {
                     lineWidth: 0.8
                 )
         )
-        .shadow(color: Color.appPrimary.opacity(0.18), radius: 18, x: 0, y: 6)
-    }
-
-    private var chartBody: some View {
-        Chart {
-            // Тонкая горизонтальная пунктирная линия на уровне минимума —
-            // даёт глазу референс «куда смотреть»
-            if let mp = periodMin {
-                RuleMark(y: .value("min", mp.price))
-                    .foregroundStyle(Color.savingsGreen.opacity(0.35))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 4]))
-            }
-
-            // Линии магазинов: данные агрегированы по дням (мин. цена за сутки)
-            ForEach(Array(dailyByStore.enumerated()), id: \.offset) { _, entry in
-                let color = chartColor(entry.source)
-                ForEach(entry.points) { point in
-                    LineMark(
-                        x: .value("Дата", point.date),
-                        y: .value("Цена", point.price),
-                        series: .value("Магазин", entry.label)
-                    )
-                    .foregroundStyle(color)
-                    .lineStyle(StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
-                    .interpolationMethod(.monotone)
-                }
-            }
-
-            // Точка минимума периода — компактная без аннотации
-            if let mp = periodMin {
-                PointMark(
-                    x: .value("Дата", mp.date),
-                    y: .value("Цена", mp.price)
-                )
-                .symbol {
-                    ZStack {
-                        Circle()
-                            .fill(Color.savingsGreen.opacity(0.40))
-                            .frame(width: 16, height: 16)
-                            .blur(radius: 3)
-                        Circle()
-                            .fill(.white)
-                            .frame(width: 10, height: 10)
-                        Circle()
-                            .fill(Color.savingsGreen)
-                            .frame(width: 5, height: 5)
-                    }
-                }
-            }
-        }
-        .chartLegend(.hidden)
-        .chartPlotStyle { plot in
-            plot.padding(.top, 8).padding(.trailing, 8)
-        }
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 3)) { _ in
-                AxisValueLabel(format: .dateTime.day().month(.abbreviated), centered: true)
-                    .font(.system(size: 9.5, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
-                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.4, dash: [2, 3]))
-                    .foregroundStyle(.white.opacity(0.08))
-                AxisValueLabel {
-                    if let intVal = value.as(Double.self) {
-                        Text(formatCompactPrice(intVal))
-                            .font(.system(size: 9.5, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.50))
-                            .monospacedDigit()
-                    }
-                }
-            }
-        }
-    }
-
-    private func formatCompactPrice(_ v: Double) -> String {
-        let absVal = abs(v)
-        if absVal >= 10_000 {
-            let rounded = Int(v.rounded())
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            formatter.groupingSeparator = " "
-            formatter.maximumFractionDigits = 0
-            formatter.usesGroupingSeparator = true
-            let formatted = formatter.string(from: NSNumber(value: rounded)) ?? String(rounded)
-            return "\(formatted) тг"
-        }
-        return "\(Int(v.rounded())) тг"
     }
 
     private func daysWord(_ n: Int) -> String {
@@ -1074,6 +1133,186 @@ private struct PriceHistoryChart: View {
         return "дней"
     }
 
+}
+
+private struct LightweightPriceChart: View {
+    let model: PriceHistoryChartModel
+
+    var body: some View {
+        StaticPriceHistoryChart(model: model)
+        .accessibilityLabel("График истории цен")
+    }
+}
+
+private struct StaticPriceHistoryChart: UIViewRepresentable {
+    let model: PriceHistoryChartModel
+
+    func makeUIView(context: Context) -> PriceHistoryChartUIView {
+        let view = PriceHistoryChartUIView()
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        view.contentMode = .redraw
+        view.model = model
+        return view
+    }
+
+    func updateUIView(_ uiView: PriceHistoryChartUIView, context: Context) {
+        uiView.model = model
+    }
+}
+
+private final class PriceHistoryChartUIView: UIView {
+    var model: PriceHistoryChartModel? {
+        didSet {
+            if oldValue?.renderPoints.map(\.id) != model?.renderPoints.map(\.id) {
+                setNeedsDisplay()
+            }
+        }
+    }
+
+    private let plotInsets = UIEdgeInsets(top: 12, left: 46, bottom: 28, right: 8)
+
+    override func draw(_ rect: CGRect) {
+        guard let model, let context = UIGraphicsGetCurrentContext(), bounds.width > 2, bounds.height > 2 else { return }
+        let plot = plotRect(in: bounds)
+        guard plot.width > 2, plot.height > 2 else { return }
+
+        context.setShouldAntialias(true)
+        drawGrid(model: model, plot: plot)
+        drawLine(model: model, plot: plot)
+        drawLabels(model: model, plot: plot)
+        drawCurrentPoint(model: model, plot: plot)
+    }
+
+    private func drawGrid(model: PriceHistoryChartModel, plot: CGRect) {
+        UIColor.white.withAlphaComponent(0.08).setStroke()
+        let grid = UIBezierPath()
+        model.yLabels.forEach { label in
+            let y = yPosition(label.value, model: model, plot: plot)
+            grid.move(to: CGPoint(x: plot.minX, y: y))
+            grid.addLine(to: CGPoint(x: plot.maxX, y: y))
+        }
+        grid.lineWidth = 0.5
+        grid.setLineDash([2, 3], count: 2, phase: 0)
+        grid.stroke()
+    }
+
+    private func drawLine(model: PriceHistoryChartModel, plot: CGRect) {
+        let points = model.renderPoints
+        guard !points.isEmpty else { return }
+
+        let line = UIBezierPath()
+        let area = UIBezierPath()
+        for (index, point) in points.enumerated() {
+            let p = pointPosition(point, model: model, plot: plot)
+            if index == 0 {
+                line.move(to: p)
+                area.move(to: CGPoint(x: p.x, y: plot.maxY))
+                area.addLine(to: p)
+            } else {
+                line.addLine(to: p)
+                area.addLine(to: p)
+            }
+        }
+
+        if let last = points.last {
+            area.addLine(to: CGPoint(x: xPosition(last.date, model: model, plot: plot), y: plot.maxY))
+            area.close()
+        }
+
+        UIColor(Color.savingsGreen).withAlphaComponent(0.13).setFill()
+        area.fill()
+
+        UIColor(Color.savingsGreen).setStroke()
+        line.lineWidth = 2.6
+        line.lineCapStyle = .round
+        line.lineJoinStyle = .round
+        line.stroke()
+    }
+
+    private func drawLabels(model: PriceHistoryChartModel, plot: CGRect) {
+        let yAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 9.5, weight: .heavy),
+            .foregroundColor: UIColor.white.withAlphaComponent(0.50)
+        ]
+        for label in model.yLabels {
+            let y = yPosition(label.value, model: model, plot: plot)
+            let size = (label.text as NSString).size(withAttributes: yAttributes)
+            (label.text as NSString).draw(
+                at: CGPoint(x: plot.minX - size.width - 8, y: y - size.height / 2),
+                withAttributes: yAttributes
+            )
+        }
+
+        let xAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 9.5, weight: .heavy),
+            .foregroundColor: UIColor.white.withAlphaComponent(0.55)
+        ]
+        for label in model.xLabels {
+            let x = xPosition(label.date, model: model, plot: plot)
+            let size = (label.text as NSString).size(withAttributes: xAttributes)
+            let clampedX = min(max(x - size.width / 2, 0), bounds.width - size.width)
+            (label.text as NSString).draw(
+                at: CGPoint(x: clampedX, y: plot.maxY + 8),
+                withAttributes: xAttributes
+            )
+        }
+    }
+
+    private func drawCurrentPoint(model: PriceHistoryChartModel, plot: CGRect) {
+        guard let current = model.currentPoint else { return }
+        let center = pointPosition(current, model: model, plot: plot)
+        UIColor(Color.appPrimary).withAlphaComponent(0.22).setFill()
+        UIBezierPath(ovalIn: CGRect(x: center.x - 7, y: center.y - 7, width: 14, height: 14)).fill()
+        UIColor.white.setFill()
+        UIBezierPath(ovalIn: CGRect(x: center.x - 4.5, y: center.y - 4.5, width: 9, height: 9)).fill()
+        UIColor(Color.appPrimary).setFill()
+        UIBezierPath(ovalIn: CGRect(x: center.x - 2.25, y: center.y - 2.25, width: 4.5, height: 4.5)).fill()
+    }
+
+    private func plotRect(in rect: CGRect) -> CGRect {
+        CGRect(
+            x: plotInsets.left,
+            y: plotInsets.top,
+            width: max(1, rect.width - plotInsets.left - plotInsets.right),
+            height: max(1, rect.height - plotInsets.top - plotInsets.bottom)
+        )
+    }
+
+    private func pointPosition(_ point: ChartPoint, model: PriceHistoryChartModel, plot: CGRect) -> CGPoint {
+        CGPoint(
+            x: xPosition(point.date, model: model, plot: plot),
+            y: yPosition(point.price, model: model, plot: plot)
+        )
+    }
+
+    private func xPosition(_ date: Date, model: PriceHistoryChartModel, plot: CGRect) -> CGFloat {
+        let minT = model.minDate.timeIntervalSince1970
+        let span = max(model.maxDate.timeIntervalSince1970 - minT, 1)
+        let ratio = (date.timeIntervalSince1970 - minT) / span
+        return plot.minX + CGFloat(ratio) * plot.width
+    }
+
+    private func yPosition(_ price: Double, model: PriceHistoryChartModel, plot: CGRect) -> CGFloat {
+        let span = max(model.maxPrice - model.minPrice, 1)
+        let ratio = (price - model.minPrice) / span
+        return plot.maxY - CGFloat(ratio) * plot.height
+    }
+}
+
+private func formatCompactPrice(_ value: Double) -> String {
+    let absVal = abs(value)
+    if absVal >= 10_000 {
+        let rounded = Int(value.rounded())
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        formatter.maximumFractionDigits = 0
+        formatter.usesGroupingSeparator = true
+        let formatted = formatter.string(from: NSNumber(value: rounded)) ?? String(rounded)
+        return "\(formatted) тг"
+    }
+    return "\(Int(value.rounded())) тг"
 }
 
 // MARK: - Expandable Description
@@ -1127,28 +1366,13 @@ private struct ExpandableDescription: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
-            ZStack {
-                Color.appCard
-                GeometryReader { geo in
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color.appPrimary.opacity(0.10), .clear],
-                                center: .center, startRadius: 0, endRadius: 80
-                            )
-                        )
-                        .frame(width: 140, height: 140)
-                        .offset(x: -40, y: -40)
-                        .blur(radius: 6)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            Color.appCard
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.appBorder, lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
     }
 }
 
@@ -1173,7 +1397,6 @@ private struct KPICell: View {
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
                 )
-                .shadow(color: glowColor.opacity(muted ? 0 : 0.40), radius: 6, x: 0, y: 0)
                 .monospacedDigit()
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
@@ -1330,11 +1553,23 @@ struct ShareImageItem: Identifiable {
     let id = UUID()
     let image: UIImage
     let url: URL?
+    let productTitle: String
+
+    var shareText: String {
+        let title = productTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix = title.isEmpty
+            ? "Нашёл выгодное предложение на minprice.kz"
+            : "Нашёл выгодное предложение на minprice.kz: \(title)"
+
+        guard let url else { return prefix }
+        return "\(prefix)\n\(url.absoluteString)"
+    }
 
     var activityItems: [Any] {
         var items: [Any] = [image]
+        items.append(shareText)
         if let url {
-            items.append("Нашёл выгодное предложение на minprice.kz\n\(url.absoluteString)")
+            items.append(url)
         }
         return items
     }

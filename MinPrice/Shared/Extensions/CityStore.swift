@@ -30,3 +30,4 @@ final class CityStore: ObservableObject {
         isLoading = false
     }
 }
+

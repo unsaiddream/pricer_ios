@@ -14,14 +14,17 @@ struct CartView: View {
                     SkeletonRowList(count: 5)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                         .padding(.top, 16)
-                } else if let summary = vm.summary, !summary.cheapestPerProduct.isEmpty {
+                } else if let summary = vm.summary, summary.hasVisibleItems {
                     CartSummaryView(
                         summary: summary,
                         vm: vm,
-                        cartUUID: cartStore.cart?.uuid,
                         onRemove: { productUuid in
                             guard let cart = cartStore.cart else { return }
-                            Task { await vm.removeItem(cart: cart, productUuid: productUuid, cityId: cityStore.selectedCityId) }
+                            Task {
+                                if let summary = await vm.removeItem(cart: cart, productUuid: productUuid, cityId: cityStore.selectedCityId) {
+                                    cartStore.apply(summary: summary)
+                                }
+                            }
                         },
                         onClear: { showClearConfirm = true }
                     )
@@ -36,7 +39,11 @@ struct CartView: View {
             .confirmationDialog("Очистить корзину?", isPresented: $showClearConfirm, titleVisibility: .visible) {
                 Button("Очистить", role: .destructive) {
                     guard let cart = cartStore.cart else { return }
-                    Task { await vm.clearCart(cart: cart, cityId: cityStore.selectedCityId) }
+                    Task {
+                        if let summary = await vm.clearCart(cart: cart, cityId: cityStore.selectedCityId) {
+                            cartStore.apply(summary: summary)
+                        }
+                    }
                 }
                 Button("Отмена", role: .cancel) {}
             } message: {
@@ -45,11 +52,15 @@ struct CartView: View {
         }
         .refreshable {
             await cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
-            await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId)
+            if let summary = await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId) {
+                cartStore.apply(summary: summary)
+            }
         }
         .task {
             await cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
-            await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId)
+            if let summary = await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId) {
+                cartStore.apply(summary: summary)
+            }
         }
         .onChange(of: cartStore.cart?.uuid) { _ in
             // Fires when cart UUID changes (new cart created)
@@ -59,10 +70,6 @@ struct CartView: View {
             // Fires after quickAdd — reload summary to show new item
             Task { await vm.load(cart: cartStore.cart, cityId: cityStore.selectedCityId) }
         }
-        .onChange(of: vm.summary?.cheapestPerProduct.count) { count in
-            cartStore.itemsCount = count ?? 0
-            cartStore.syncWidget()
-        }
     }
 }
 
@@ -71,23 +78,14 @@ struct CartView: View {
 private struct EmptyCartView: View {
     var body: some View {
         VStack(spacing: 20) {
-            ZStack {
-                Circle()
-                    .fill(Color.appPrimary.opacity(0.08))
-                    .frame(width: 100, height: 100)
-                Image(systemName: "cart")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Color.appPrimary.opacity(0.5))
-            }
-            VStack(spacing: 8) {
-                Text("Корзина пуста")
-                    .font(.jb(20, weight: .bold))
-                    .foregroundStyle(Color.appForeground)
-                Text("Добавляйте товары из поиска или каталога")
-                    .font(.jb(14))
-                    .foregroundStyle(Color.appMuted)
-                    .multilineTextAlignment(.center)
-            }
+            ErrorStateView(
+                .empty(
+                    title: "Корзина пуста",
+                    message: "Добавляйте товары из поиска или каталога",
+                    systemImage: "cart"
+                )
+            )
+            .frame(maxHeight: 260)
             Button {
                 NotificationCenter.default.post(name: .switchTab, object: Tab.catalog)
             } label: {
@@ -116,7 +114,6 @@ private struct EmptyCartView: View {
 private struct CartSummaryView: View {
     let summary: CartSummaryResponse
     let vm: CartViewModel
-    let cartUUID: String?
     let onRemove: (String) -> Void
     let onClear: () -> Void
 
@@ -142,8 +139,38 @@ private struct CartSummaryView: View {
         }
     }
 
+    private func localTotal(replacing productUuid: String, with quantity: Int) -> Double {
+        summary.cheapestPerProduct.reduce(0) { acc, item in
+            let itemQuantity = item.product.uuid == productUuid ? quantity : qty(for: item)
+            return acc + item.price * Double(itemQuantity)
+        }
+    }
+
     private var totalItems: Int {
-        summary.cheapestPerProduct.reduce(0) { acc, item in acc + qty(for: item) }
+        let available = summary.cheapestPerProduct.reduce(0) { acc, item in acc + qty(for: item) }
+        let unavailable = summary.unavailableProducts.reduce(0) { acc, item in
+            acc + (localQtys[item.product.uuid] ?? item.quantity)
+        }
+        return available + unavailable
+    }
+
+    private var quantityByProduct: [String: Int] {
+        var quantities: [String: Int] = [:]
+        for item in summary.cheapestPerProduct {
+            quantities[item.product.uuid] = qty(for: item)
+        }
+        for item in summary.unavailableProducts where quantities[item.product.uuid] == nil {
+            quantities[item.product.uuid] = localQtys[item.product.uuid] ?? item.quantity
+        }
+        return quantities
+    }
+
+    private func singleStoreTotal(for store: SingleStoreTotal) -> Double {
+        guard !store.products.isEmpty else { return store.totalPrice }
+        return store.products.reduce(0) { total, item in
+            let quantity = quantityByProduct[item.product.uuid] ?? item.quantity
+            return total + item.price * Double(quantity)
+        }
     }
 
     /// Самая дорогая «один магазин» цена — нужна как baseline для подсчёта savings.
@@ -152,7 +179,7 @@ private struct CartSummaryView: View {
         guard !summary.singleStoreTotals.isEmpty else { return nil }
         // Считаем только магазины где доступны все товары — иначе сравнение нечестное.
         let complete = summary.singleStoreTotals.filter { $0.availableCount == $0.totalCount }
-        return complete.map(\.totalPrice).max() ?? summary.singleStoreTotals.map(\.totalPrice).max()
+        return complete.map(singleStoreTotal).max() ?? summary.singleStoreTotals.map(singleStoreTotal).max()
     }
 
     private var savingsAmount: Double {
@@ -160,11 +187,31 @@ private struct CartSummaryView: View {
         return worst - localTotal
     }
 
+    private var shareURL: URL? {
+        URL(string: "https://minprice.kz/cart/\(summary.cart.uuid)/")
+    }
+
     private func scheduleUpdate(uuid: String, newQty: Int) {
+        let previousQty = localQtys[uuid] ?? summary.cheapestPerProduct.first(where: { $0.product.uuid == uuid })?.quantity
         debounceWorks[uuid]?.cancel()
         guard let cart = cartStore.cart else { return }
         let work = DispatchWorkItem {
-            Task { await vm.updateQuantity(cart: cart, productUuid: uuid, quantity: newQty, cityId: cityStore.selectedCityId) }
+            Task {
+                let summary = await vm.updateQuantity(cart: cart, productUuid: uuid, quantity: newQty, cityId: cityStore.selectedCityId)
+                debounceWorks[uuid] = nil
+                if let summary {
+                    cartStore.apply(summary: summary, quantityOverrides: [uuid: newQty])
+                } else if let previousQty {
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        localQtys[uuid] = previousQty
+                    }
+                    cartStore.applyLocalQuantity(
+                        productUuid: uuid,
+                        quantity: previousQty,
+                        totalOverride: localTotal(replacing: uuid, with: previousQty)
+                    )
+                }
+            }
         }
         debounceWorks[uuid] = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
@@ -187,17 +234,20 @@ private struct CartSummaryView: View {
                                 .foregroundStyle(Color.discountRed)
                                 .frame(width: 36, height: 36)
                                 .background(Color.appCard, in: Circle())
-                                .neumorphicButton()
+                                .overlay(Circle().stroke(Color.appBorder, lineWidth: 1))
                         }
-                        if let uuid = cartUUID {
-                            ShareLink(item: URL(string: "https://minprice.kz/cart/\(uuid)")!) {
+                        if let shareURL {
+                            ShareLink(item: shareURL) {
                                 Image(systemName: "square.and.arrow.up")
                                     .font(.system(size: 15))
                                     .foregroundStyle(Color.appPrimary)
                                     .frame(width: 36, height: 36)
                                     .background(Color.appCard, in: Circle())
-                                    .neumorphicButton()
+                                    .overlay(Circle().stroke(Color.appBorder, lineWidth: 1))
                             }
+                            .simultaneousGesture(TapGesture().onEnded {
+                                CrashReporter.action("cart_share_tap")
+                            })
                         }
                     }
                 }
@@ -250,14 +300,12 @@ private struct CartSummaryView: View {
                 // Список товаров — показываем только в режиме "Микс"
                 if viewMode == "mix" || summary.singleStoreTotals.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.savingsGreen)
-                            Text("Лучшие цены")
-                                .font(.jb(15, weight: .semibold))
-                                .foregroundStyle(Color.appForeground)
-                        }
+                        AppSectionHeader(
+                            title: "Лучшие цены",
+                            subtitle: "Собрано по минимуму",
+                            icon: "sparkles",
+                            accent: Color.savingsGreen
+                        )
 
                         VStack(spacing: 0) {
                             ForEach(Array(summary.cheapestPerProduct.enumerated()), id: \.element.product.uuid) { idx, item in
@@ -269,6 +317,11 @@ private struct CartSummaryView: View {
                                         withAnimation(.easeInOut(duration: 0.1)) {
                                             localQtys[item.product.uuid] = newQty
                                         }
+                                        cartStore.applyLocalQuantity(
+                                            productUuid: item.product.uuid,
+                                            quantity: newQty,
+                                            totalOverride: localTotal(replacing: item.product.uuid, with: newQty)
+                                        )
                                         scheduleUpdate(uuid: item.product.uuid, newQty: newQty)
                                     }
                                 )
@@ -285,25 +338,31 @@ private struct CartSummaryView: View {
 
                 // Сравнение по магазинам — всегда видно (это сердце фичи минимальных цен)
                 if !summary.singleStoreTotals.isEmpty {
-                    StoreComparisonSection(totals: summary.singleStoreTotals, vm: vm)
+                    StoreComparisonSection(
+                        totals: summary.singleStoreTotals,
+                        quantityByProduct: quantityByProduct,
+                        vm: vm
+                    )
                 }
 
                 // Недоступные товары
                 if !summary.unavailableProducts.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.circle")
-                                .font(.system(size: 13))
-                                .foregroundStyle(Color.appMuted)
-                            Text("Нет в наличии")
-                                .font(.jb(15, weight: .semibold))
-                                .foregroundStyle(Color.appMuted)
+                        HStack(alignment: .center, spacing: 10) {
+                            AppSectionHeader(
+                                title: "Нет в наличии",
+                                subtitle: "\(summary.unavailableProducts.count) товаров",
+                                icon: "exclamationmark.circle",
+                                accent: Color.warningAmber
+                            )
                             Spacer()
                             Button {
                                 guard let cart = cartStore.cart else { return }
                                 let uuids = summary.unavailableProducts.map { $0.product.uuid }
                                 Task {
-                                    await vm.removeItems(cart: cart, productUuids: uuids, cityId: cityStore.selectedCityId)
+                                    if let summary = await vm.removeItems(cart: cart, productUuids: uuids, cityId: cityStore.selectedCityId) {
+                                        cartStore.apply(summary: summary)
+                                    }
                                 }
                             } label: {
                                 HStack(spacing: 4) {
@@ -349,7 +408,7 @@ private struct CartSummaryView: View {
                                             .foregroundStyle(Color.discountRed)
                                             .frame(width: 36, height: 36)
                                             .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 10))
-                                            .neumorphicButton()
+                                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.appBorder, lineWidth: 1))
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -375,7 +434,7 @@ private struct CartSummaryView: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 32)
+            .padding(.bottom, 180)
         }
         .onAppear {
             for item in summary.cheapestPerProduct {
@@ -385,7 +444,8 @@ private struct CartSummaryView: View {
         .onChange(of: summary.cart.updatedAt) { _ in
             for item in summary.cheapestPerProduct {
                 let uuid = item.product.uuid
-                if debounceWorks[uuid] == nil {
+                let localQty = localQtys[uuid]
+                if debounceWorks[uuid] == nil && (localQty == nil || localQty == item.quantity) {
                     localQtys[uuid] = item.quantity
                 }
             }
@@ -498,7 +558,7 @@ private struct CartItemRow: View {
                             .foregroundStyle(qty <= 1 ? Color.discountRed : Color.appPrimary)
                             .frame(width: 40, height: 40)
                             .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 10))
-                            .neumorphicButton()
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.appBorder, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
 
@@ -515,7 +575,7 @@ private struct CartItemRow: View {
                             .foregroundStyle(Color.appPrimary)
                             .frame(width: 40, height: 40)
                             .background(Color.appBackground, in: RoundedRectangle(cornerRadius: 10))
-                            .neumorphicButton()
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.appBorder, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
@@ -535,6 +595,7 @@ private struct CartItemRow: View {
 
 private struct StoreComparisonSection: View {
     let totals: [SingleStoreTotal]
+    let quantityByProduct: [String: Int]
     let vm: CartViewModel
 
     @EnvironmentObject var cityStore: CityStore
@@ -544,19 +605,36 @@ private struct StoreComparisonSection: View {
     // Для Wolt-сетей (Small/Galmart/Toimart) кнопка-deeplink тоже должна быть.
     private let transferableSources: Set<String> = ["arbuz", "airbafresh", "mgo", "wolt"]
     private func canTransfer(_ store: SingleStoreTotal) -> Bool {
-        transferableSources.contains(store.chainSource)
+        guard ConfigSnapshot.isEnabled(.cartTransfer, default: false) else { return false }
+        return transferableSources.contains(store.chainSource)
     }
-    private var minPrice: Double { totals.map(\.totalPrice).min() ?? 0 }
+    private func displayedTotal(for store: SingleStoreTotal) -> Double {
+        guard !store.products.isEmpty else { return store.totalPrice }
+        return store.products.reduce(0) { total, item in
+            let quantity = quantityByProduct[item.product.uuid] ?? item.quantity
+            return total + item.price * Double(quantity)
+        }
+    }
+
+    private var minPrice: Double {
+        let complete = totals.filter { $0.availableCount == $0.totalCount }
+        let comparable = complete.isEmpty ? totals : complete
+        return comparable.map(displayedTotal).min() ?? 0
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Если купить в одном магазине")
-                .font(.jb(15, weight: .semibold))
-                .foregroundStyle(Color.appForeground)
+            AppSectionHeader(
+                title: "Один магазин",
+                subtitle: "Сравнение полной корзины",
+                icon: "storefront.fill",
+                accent: Color.appPrimary
+            )
 
             VStack(spacing: 0) {
                 ForEach(Array(totals.enumerated()), id: \.element.id) { idx, store in
-                    let isCheapest = store.totalPrice == minPrice && store.availableCount == store.totalCount
+                    let totalPrice = displayedTotal(for: store)
+                    let isCheapest = totalPrice == minPrice && store.availableCount == store.totalCount
 
                     HStack(spacing: 12) {
                         StoreLogoView(url: chainLogoURL(store.chainLogo), slug: store.chainSlug, source: store.chainSource, size: 32)
@@ -587,9 +665,11 @@ private struct StoreComparisonSection: View {
                         Spacer()
 
                         VStack(alignment: .trailing, spacing: 2) {
-                            Text(formatPriceTg(store.totalPrice))
+                            Text(formatPriceTg(totalPrice))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(isCheapest ? Color.savingsGreen : Color.appForeground)
+                                .contentTransition(.numericText())
+                                .animation(.easeInOut(duration: 0.15), value: totalPrice)
                             if store.availableCount < store.totalCount {
                                 Text("не все товары")
                                     .font(.system(size: 10))

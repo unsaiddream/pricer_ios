@@ -4,6 +4,13 @@ import SwiftUI
 /// много воздуха, чистые карточки без теней. Минимум декора, максимум типографики.
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var favoriteStores = FavoriteStoresStore.shared
+
+    private let storeColumns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+    ]
 
     private let appVersion: String = {
         let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
@@ -42,16 +49,33 @@ struct AboutView: View {
                 }
             }
         }
+        .task {
+            await favoriteStores.loadChains()
+        }
     }
 
     // MARK: - Hero
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Image("AppLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 76, height: 76)
+            HStack(alignment: .center, spacing: 14) {
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 76, height: 76)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Сравнение цен")
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .foregroundStyle(Color.appPrimary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.appPrimary.opacity(0.10), in: Capsule())
+                    Text("Алматы, Астана, Шымкент")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.appMuted)
+                }
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
@@ -69,6 +93,19 @@ struct AboutView: View {
                     .foregroundStyle(Color.appMuted)
             }
         }
+        .padding(18)
+        .background(
+            LinearGradient(
+                colors: [Color.appCard, Color.appPrimary.opacity(0.08)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.appBorder.opacity(0.8), lineWidth: 0.8)
+        )
         .padding(.top, 16)
     }
 
@@ -98,26 +135,28 @@ struct AboutView: View {
     }
 
     private var storesSection: some View {
-        Section(eyebrow: "Партнёры") {
-            HStack(spacing: 12) {
-                ForEach(["store_magnum", "store_arbuz", "store_airba_fresh", "store_small"], id: \.self) { asset in
-                    ZStack {
-                        Color.white
-                        Image(asset)
-                            .resizable()
-                            .scaledToFit()
-                            .padding(8)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.appBorder, lineWidth: 0.6)
-                    )
+        Section(eyebrow: "Сравниваем в:") {
+            LazyVGrid(columns: storeColumns, spacing: 10) {
+                ForEach(comparedStores) { store in
+                    ComparedStoreTile(store: store)
                 }
             }
         }
+    }
+
+    private var comparedStores: [ComparedStore] {
+        let chains = favoriteStores.chains
+        guard !chains.isEmpty else { return ComparedStore.fallback }
+        return chains
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .map {
+                ComparedStore(
+                    name: storeDisplayName(slug: $0.slug, fallback: $0.name),
+                    slug: $0.slug,
+                    source: $0.source,
+                    logoURL: $0.logoURL
+                )
+            }
     }
 
     private var documentsSection: some View {
@@ -189,6 +228,67 @@ struct AboutView: View {
                 .foregroundStyle(Color.appMuted.opacity(0.7))
                 .padding(.top, 12)
         }
+    }
+
+    private func storeDisplayName(slug: String?, fallback raw: String) -> String {
+        let key = (slug ?? raw).lowercased().replacingOccurrences(of: " ", with: "")
+        switch key {
+        case "mgo", "magnumgo":              return "MagnumGO"
+        case "airbafresh", "airba":          return "Airba"
+        case "arbuz", "arbuz.kz", "arbuzkz": return "Arbuz"
+        case "small":                        return "SMALL"
+        case "galmart":                      return "Galmart"
+        case "toimart":                      return "Toimart"
+        default:                             return raw
+        }
+    }
+}
+
+private struct ComparedStore: Identifiable {
+    var id: String { slug }
+    let name: String
+    let slug: String
+    let source: String
+    let logoURL: URL?
+
+    static let fallback: [ComparedStore] = [
+        .init(name: "MagnumGO", slug: "mgo", source: "mgo", logoURL: nil),
+        .init(name: "Arbuz", slug: "arbuz", source: "arbuz", logoURL: nil),
+        .init(name: "Airba", slug: "airbafresh", source: "airbafresh", logoURL: nil),
+        .init(name: "SMALL", slug: "small", source: "wolt", logoURL: nil),
+        .init(name: "Galmart", slug: "galmart", source: "wolt", logoURL: nil),
+        .init(name: "Toimart", slug: "toimart", source: "wolt", logoURL: nil),
+    ]
+}
+
+private struct ComparedStoreTile: View {
+    let store: ComparedStore
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.white)
+                StoreLogoView(url: store.logoURL, slug: store.slug, source: store.source, size: 44)
+            }
+            .frame(height: 58)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(BrandPalette.storeColor(slug: store.slug, source: store.source).opacity(0.22), lineWidth: 1)
+            )
+
+            Text(store.name)
+                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                .foregroundStyle(Color.appForeground.opacity(0.82))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .padding(10)
+        .background(Color.appCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.appBorder.opacity(0.75), lineWidth: 0.7)
+        )
     }
 }
 

@@ -90,82 +90,78 @@ struct ProductCard: View, Equatable {
     }
 
     private var discountPercent: Int? {
-        if let b = bestSlot, let prev = b.previousPrice, prev > b.price {
-            let pct = Int(((prev - b.price) / prev) * 100)
-            return pct > 0 ? pct : nil
-        }
-        if let pct = product.priceRange?.savingsPercent, pct > 0 { return Int(pct) }
-        return nil
+        let pct = Int(product.meanMinDiscountPercent.rounded())
+        return pct > 0 ? pct : nil
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-
-            // Image — downsample до карточного размера, иначе держим JPEG в исходном (1500×1500)
             ZStack {
-                Color.appCard
+                Color.appBackground.opacity(0.55)
                 KFImage(product.coverURL)
                     .placeholder {
                         Image(systemName: "photo")
                             .font(.title2)
                             .foregroundStyle(Color.appMuted.opacity(0.3))
                     }
-                    .downsampled(to: CGSize(width: 200, height: 130))
+                    .downsampled(to: CGSize(width: 220, height: 150))
                     .fade(duration: 0.18)
                     .cancelOnDisappear(true)
                     .resizable()
                     .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: 130)
+                    .frame(maxWidth: .infinity, maxHeight: 132)
             }
-            .frame(height: 140)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .frame(height: 144)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(alignment: .topLeading) {
                 if let pct = discountPercent {
                     DiscountChip(percent: pct).padding(8)
                 }
             }
 
-            // Price + name
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Spacer(minLength: 4)
+                    if let prev = oldPrice {
+                        Text(formatPriceTg(prev))
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(Color.appMuted)
+                            .strikethrough()
+                    }
                     if let price = displayPrice {
                         Text(formatPriceTg(price))
                             .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(oldPrice != nil ? Color.savingsGreen : Color.appForeground)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                            .allowsTightening(true)
                     }
-                    if let prev = oldPrice {
-                        Text(formatPriceTg(prev))
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.appMuted)
-                            .strikethrough()
-                    }
-                    Spacer()
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
 
                 Text(smartTitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.appForeground.opacity(0.85))
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Color.appForeground.opacity(0.86))
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 32, alignment: .top)
+                    .frame(height: 34, alignment: .top)
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 8)
-            .padding(.bottom, 6)
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
 
-            // Store comparison grid — 3 колонки горизонтально, как было раньше
             Divider().overlay(Color.appBorder)
             StoreGrid(slots: slots, bestId: bestSlot?.id, linkedCount: product.linkedStoresCount)
-                .frame(height: 64)
-                .padding(.horizontal, 8)
+                .frame(height: 86)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 7)
 
-            // Cart button / stepper
             if cartCount > 0 {
                 HStack(spacing: 0) {
                     Button(action: { onRemove?() }) {
                         Image(systemName: "minus")
                             .font(.system(size: 13, weight: .bold))
-                            .frame(width: 44, height: 38)
+                            .frame(width: 44, height: 40)
                     }
                     Text("\(cartCount)")
                         .font(.system(size: 15, weight: .bold, design: .rounded))
@@ -173,38 +169,35 @@ struct ProductCard: View, Equatable {
                     Button(action: { onAdd?() }) {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .bold))
-                            .frame(width: 44, height: 38)
+                            .frame(width: 44, height: 40)
                     }
                 }
                 .foregroundStyle(Color.appPrimary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 38)
-                .background(Color.appPrimary.opacity(0.12))
+                .frame(height: 40)
+                .background(Color.appPrimary.opacity(0.10))
             } else {
                 Button(action: { onAdd?() }) {
                     HStack(spacing: 5) {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .bold))
-                        if let price = displayPrice {
-                            Text(formatPriceTg(price))
-                                .font(.system(size: 13, weight: .semibold))
-                        } else {
-                            Text("В корзину")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
+                        Text("Добавить")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(Color.appPrimary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 38)
-                    .background(Color.appPrimary.opacity(0.08))
+                    .frame(height: 40)
+                    .background(Color.appPrimary.opacity(0.10))
                 }
             }
         }
         .background(Color.appCard)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.appPrimary.opacity(0.18), lineWidth: 1))
-        .compositingGroup() // схлопываем layer — тень рисуется один раз, не каждый кадр
-        .neumorphicCard(radius: 16)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.appBorder.opacity(0.85), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.035), radius: 7, x: 0, y: 3)
     }
 }
 
@@ -219,59 +212,63 @@ private struct StoreGrid: View {
 
     var body: some View {
         if slots.isEmpty {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 if let count = linkedCount, count > 0 {
                     Image(systemName: "storefront")
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .foregroundStyle(Color.appMuted)
                     Text("\(count) \(storesWord(count))")
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .foregroundStyle(Color.appMuted)
                 }
                 Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            // GeometryReader даёт реальную ширину карточки — делим на 3,
-            // получаем фиксированный размер колонки независимо от числа магазинов.
-            // Spacer'ы по краям центрируют группу из 1-2 элементов.
-            GeometryReader { geo in
-                let colWidth = geo.size.width / 3
-                HStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    ForEach(0..<slots.count, id: \.self) { i in
-                        storeColumn(slots[i])
-                            .frame(width: colWidth)
-                    }
-                    Spacer(minLength: 0)
+            VStack(spacing: 3) {
+                ForEach(0..<slots.count, id: \.self) { i in
+                    storeRow(slots[i])
                 }
-                .frame(width: geo.size.width, height: geo.size.height)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
     @ViewBuilder
-    private func storeColumn(_ slot: StoreSlot) -> some View {
+    private func storeRow(_ slot: StoreSlot) -> some View {
         let isBest = slot.id == bestId
-        VStack(spacing: 3) {
-            StoreLogoView(url: slot.logoURL, slug: slot.chainSlug, source: slot.storeSource, size: 22)
+        HStack(spacing: 5) {
+            StoreLogoView(url: slot.logoURL, slug: slot.chainSlug, source: slot.storeSource, size: 20)
                 .opacity(slot.inStock ? 1.0 : 0.4)
+                .frame(width: 22, height: 22)
+
+            Text(formatCardStoreName(slug: slot.chainSlug, fallback: slot.chainName))
+                .font(.system(size: 10, weight: isBest ? .bold : .semibold))
+                .foregroundStyle(slot.inStock ? Color.appForeground.opacity(0.72) : Color.appMuted.opacity(0.65))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .allowsTightening(true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if isBest {
+                Text("MIN")
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundStyle(Color.appPrimary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.appPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+            }
+
             Text(formatPriceTg(slot.price))
-                .font(.system(size: 10, weight: isBest ? .bold : .regular))
+                .font(.system(size: 12, weight: isBest ? .bold : .regular))
                 .foregroundStyle(isBest ? Color.appPrimary : Color.appMuted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-            if isBest {
-                Text("MIN")
-                    .font(.system(size: 7, weight: .black))
-                    .foregroundStyle(Color.appPrimary)
-                    .padding(.horizontal, 4).padding(.vertical, 1)
-                    .background(Color.appPrimary.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
-            } else {
-                Color.clear.frame(height: 13)
-            }
+                .allowsTightening(true)
+                .layoutPriority(2)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 23)
     }
 }
 
@@ -287,26 +284,11 @@ private struct DiscountChip: View {
                 .font(.system(size: 11, weight: .black, design: .rounded))
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3.5)
-        .background {
-            ZStack {
-                LinearGradient(
-                    colors: [
-                        Color.discountRed.opacity(0.95),
-                        Color.discountRedDeep,
-                    ],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                )
-                LinearGradient(
-                    colors: [.white.opacity(0.30), .clear],
-                    startPoint: .top, endPoint: .center
-                )
-            }
-            .clipShape(Capsule())
-        }
-        .overlay(Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.6))
-        .shadow(color: Color.discountRed.opacity(0.40), radius: 6, x: 0, y: 2)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .background(Color.discountRed, in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.6))
+        .shadow(color: Color.discountRed.opacity(0.28), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -316,4 +298,27 @@ private func storesWord(_ n: Int) -> String {
     if m10 == 1 { return "магазин" }
     if m10 >= 2 && m10 <= 4 { return "магазина" }
     return "магазинов"
+}
+
+private func formatCardStoreName(slug: String?, fallback raw: String) -> String {
+    let key = (slug ?? raw).lowercased().replacingOccurrences(of: " ", with: "")
+    switch key {
+    case "mgo", "magnumgo":              return "MagnumGO"
+    case "airbafresh", "airba":          return "Airba"
+    case "arbuz", "arbuz.kz", "arbuzkz": return "Arbuz"
+    case "small":                        return "SMALL"
+    case "galmart":                      return "Galmart"
+    case "toimart":                      return "Toimart"
+    case "wolt":                         return "SMALL"
+    case "kaspi", "kaspimart":           return "Kaspi"
+    default:
+        if key.contains("magnum") { return "MagnumGO" }
+        if key.contains("airba") { return "Airba" }
+        if key.contains("arbuz") { return "Arbuz" }
+        if key.contains("galmart") { return "Galmart" }
+        if key.contains("toimart") { return "Toimart" }
+        if key.contains("small") { return "SMALL" }
+        if key.contains("kaspi") { return "Kaspi" }
+        return raw
+    }
 }

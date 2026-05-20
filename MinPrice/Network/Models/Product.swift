@@ -84,6 +84,26 @@ struct Product: Codable, Identifiable {
     var cheapestStore: PriceRangeStore? {
         priceRange?.stores.first(where: { $0.price == priceRange?.min })
     }
+
+    /// Скидка по формуле: (mean(price) - min(price)) / mean(price) * 100.
+    /// Используем только in-stock цены по магазинам.
+    var meanMinDiscountPercent: Double {
+        let prices = inStockPrices
+        guard !prices.isEmpty, let minPrice = prices.min() else { return 0 }
+        let meanPrice = prices.reduce(0, +) / Double(prices.count)
+        guard meanPrice > 0 else { return 0 }
+        return max(0, (meanPrice - minPrice) / meanPrice * 100)
+    }
+
+    private var inStockPrices: [Double] {
+        if let stores, !stores.isEmpty {
+            return stores.filter(\.inStock).map(\.price)
+        }
+        if let rangeStores = priceRange?.stores, !rangeStores.isEmpty {
+            return rangeStores.filter(\.inStock).map(\.price)
+        }
+        return []
+    }
 }
 
 struct PriceRange: Codable {
@@ -129,8 +149,29 @@ struct ProductsResponse: Codable {
     let results: [Product]
 }
 
-struct BestDealsResponse: Codable {
+struct BestDealsResponse: Decodable {
     let deals: [Product]
+    let total: Int?
+    let page: Int?
+    let pageSize: Int?
+    let totalPages: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case deals, results, total, page, pageSize, totalPages
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let d = try c.decodeIfPresent([Product].self, forKey: .deals) {
+            deals = d
+        } else {
+            deals = try c.decodeIfPresent([Product].self, forKey: .results) ?? []
+        }
+        total = try c.decodeIfPresent(Int.self, forKey: .total)
+        page = try c.decodeIfPresent(Int.self, forKey: .page)
+        pageSize = try c.decodeIfPresent(Int.self, forKey: .pageSize)
+        totalPages = try c.decodeIfPresent(Int.self, forKey: .totalPages)
+    }
 }
 
 struct PriceDropsResponse: Codable {

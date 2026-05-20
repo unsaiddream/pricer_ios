@@ -56,6 +56,8 @@
 	<string>Сохраняем график сравнения цен в галерею, чтобы вы могли поделиться им</string>
 	<key>SENTRY_DSN</key>
 	<string>$(SENTRY_DSN)</string>
+	<key>APPMETRICA_API_KEY</key>
+	<string>$(APPMETRICA_API_KEY)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>JetBrainsMono-Regular.ttf</string>

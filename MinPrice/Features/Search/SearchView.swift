@@ -71,19 +71,20 @@ struct SearchView: View {
                                                 ProductCardWrapper(product: product)
                                             }
                                             .buttonStyle(.pressScale)
-                                            .onAppear {
-                                                if product.uuid == vm.results.last?.uuid {
-                                                    Task { await vm.loadMore(cityId: cityStore.selectedCityId) }
-                                                }
-                                            }
                                         }
                                     }
                                     .padding(.horizontal, 16)
 
+                                    if !vm.results.isEmpty {
+                                        Color.clear
+                                            .frame(height: 1)
+                                            .onAppear {
+                                                Task { await vm.loadMore(cityId: cityStore.selectedCityId) }
+                                            }
+                                    }
+
                                     if vm.isLoading {
-                                        ProgressView()
-                                            .tint(Color.appPrimary)
-                                            .padding(.vertical, 16)
+                                        PaginationLoader()
                                     }
                                 }
                                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -257,56 +258,68 @@ private struct RecentSearchesView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("Последние запросы")
-                        .font(.jb(15, weight: .semibold))
-                        .foregroundStyle(Color.appForeground)
-                    Spacer()
+                    AppSectionHeader(
+                        title: "Последние запросы",
+                        subtitle: "\(searches.count) сохранено",
+                        icon: "clock.fill",
+                        accent: Color.appPrimary
+                    )
                     Button(action: onClear) {
-                        Text("Очистить")
-                            .font(.jb(13))
-                            .foregroundStyle(Color.appPrimary)
+                        Image(systemName: "trash")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.appMuted)
+                            .frame(width: 34, height: 34)
+                            .background(Color.appCard, in: Circle())
+                            .overlay(Circle().stroke(Color.appBorder, lineWidth: 1))
                     }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
 
-                VStack(spacing: 0) {
+                VStack(spacing: 8) {
                     ForEach(Array(searches.enumerated()), id: \.offset) { idx, query in
-                        Button { onSelect(query) } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "clock")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(Color.appMuted)
-                                Text(query)
-                                    .font(.jb(14))
-                                    .foregroundStyle(Color.appForeground)
-                                    .lineLimit(1)
-                                Spacer()
-                                Image(systemName: "arrow.up.left")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.appMuted.opacity(0.5))
+                        HStack(spacing: 10) {
+                            Button { onSelect(query) } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "clock")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(Color.appMuted)
+                                    Text(query)
+                                        .font(.jb(14))
+                                        .foregroundStyle(Color.appForeground)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Image(systemName: "arrow.up.left")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.appMuted.opacity(0.5))
+                                }
+                                .contentShape(Rectangle())
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 13)
-                        }
-                        .buttonStyle(.plain)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
+                            .buttonStyle(.plain)
+
+                            Button {
                                 withAnimation { onDelete(query) }
                             } label: {
-                                Label("Удалить", systemImage: "trash")
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(Color.appMuted)
+                                    .frame(width: 26, height: 26)
+                                    .background(Color.appBackground, in: Circle())
                             }
+                            .buttonStyle(.plain)
                         }
-
-                        if idx < searches.count - 1 {
-                            Divider().overlay(Color.appBorder).padding(.leading, 44)
-                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.appBorder, lineWidth: 1)
+                        )
                     }
                 }
-                .background(Color.appCard, in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.appBorder, lineWidth: 1))
                 .padding(.horizontal, 16)
             }
             .padding(.bottom, 100)
@@ -366,10 +379,13 @@ private struct SearchEmptyState: View {
                 .padding(.top, 40)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Популярные запросы")
-                        .font(.jb(13, weight: .semibold))
-                        .foregroundStyle(Color.appMuted)
-                        .padding(.horizontal, 16)
+                    AppSectionHeader(
+                        title: "Популярные запросы",
+                        subtitle: "Начните с частых товаров",
+                        icon: "sparkle.magnifyingglass",
+                        accent: Color.appPrimary
+                    )
+                    .padding(.horizontal, 16)
 
                     LazyVGrid(
                         columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],

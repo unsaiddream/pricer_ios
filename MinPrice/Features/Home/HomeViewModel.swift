@@ -3,7 +3,12 @@ import Foundation
 @MainActor
 final class HomeViewModel: ObservableObject {
     @Published var bestDeals: [Product] = []
+    @Published var bestDealsTotal: Int?
     @Published var priceDrops: [Product] = []
+    @Published var hasMoreBestDeals = false
+    @Published var hasMorePriceDrops = false
+    @Published var isLoadingMoreBestDeals = false
+    @Published var isLoadingMorePriceDrops = false
     @Published var categories: [Category] = []
     @Published var basketCategory: Category?
     /// Готовый агрегат с бэка для графика-корзины — приоритетный источник.
@@ -16,13 +21,20 @@ final class HomeViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let api = APIClient.shared
+    private let homePageSize = 20
+    private var bestDealsPage = 1
+    private var priceDropsPage = 1
 
     func load(cityId: Int) async {
         // Скрываем скелетон как только пришла ПЕРВАЯ пачка (deals или drops).
         // Раньше ждали ВСЕ запросы — basket мог тащить экран ещё 1.5–2с.
         isLoading = bestDeals.isEmpty && priceDrops.isEmpty
         errorMessage = nil
-        let cityParam = URLQueryItem(name: "city_id", value: String(cityId))
+        bestDealsTotal = nil
+        bestDealsPage = 1
+        priceDropsPage = 1
+        hasMoreBestDeals = false
+        hasMorePriceDrops = false
 
         // Категории, deals, drops — все параллельно, независимо друг от друга.
         let needCategories = categories.isEmpty
@@ -31,21 +43,22 @@ final class HomeViewModel: ObservableObject {
             return (try? await api.fetch(CategoriesResponse.self, path: Endpoint.categories()))?.categories
         }()
 
-        async let dealsResult: Result<BestDealsResponse, Error> = {
-            do { return .success(try await api.fetch(BestDealsResponse.self, path: Endpoint.bestDeals(), queryItems: [cityParam])) }
-            catch { return .failure(error) }
+        async let dealsResult: Result<Void, Error> = {
+            do {
+                try await fetchBestDeals(cityId: cityId, page: 1, append: false)
+                return .success(())
+            } catch {
+                return .failure(error)
+            }
         }()
 
-        // Снижения цен берём из /discounts/ (раньше был /price-drops/, удалён на бэке).
-        // DiscountsResponse такой же по форме (results[]).
-        async let dropsResult: Result<DiscountsResponse, Error> = {
-            let dropItems: [URLQueryItem] = [
-                cityParam,
-                URLQueryItem(name: "page", value: "1"),
-                URLQueryItem(name: "page_size", value: "20"),
-            ]
-            do { return .success(try await api.fetch(DiscountsResponse.self, path: Endpoint.discounts(), queryItems: dropItems)) }
-            catch { return .failure(error) }
+        async let dropsResult: Result<Void, Error> = {
+            do {
+                try await fetchPriceDrops(cityId: cityId, page: 1, append: false)
+                return .success(())
+            } catch {
+                return .failure(error)
+            }
         }()
 
         // 1) Категории первыми — нужны для basket-rotation
@@ -57,7 +70,8 @@ final class HomeViewModel: ObservableObject {
         // 3) Ждём deals — как только пришли, показываем сетку
         let deals = await dealsResult
         switch deals {
-        case .success(let r): bestDeals = r.deals
+        case .success:
+            break
         case .failure(let e):
             if !e.isCancellation { errorMessage = e.localizedDescription }
         }
@@ -66,12 +80,102 @@ final class HomeViewModel: ObservableObject {
         // 4) Drops в фоне (UI уже показан)
         let drops = await dropsResult
         switch drops {
-        case .success(let r): priceDrops = r.results
+        case .success:
+            break
         case .failure: priceDrops = []
         }
 
         // 5) Дожидаемся basket чтобы не оборвать его при выходе из метода
         await basketTask.value
+    }
+
+    func loadMoreBestDeals(cityId: Int) async {
+        guard hasMoreBestDeals, !isLoadingMoreBestDeals else { return }
+        isLoadingMoreBestDeals = true
+        defer { isLoadingMoreBestDeals = false }
+        do {
+            try await fetchBestDeals(cityId: cityId, page: bestDealsPage + 1, append: true)
+        } catch {}
+    }
+
+    func loadMorePriceDrops(cityId: Int) async {
+        guard hasMorePriceDrops, !isLoadingMorePriceDrops else { return }
+        isLoadingMorePriceDrops = true
+        defer { isLoadingMorePriceDrops = false }
+        do {
+            try await fetchPriceDrops(cityId: cityId, page: priceDropsPage + 1, append: true)
+        } catch {}
+    }
+
+    private func fetchBestDeals(cityId: Int, page: Int, append: Bool) async throws {
+        let items = [
+            URLQueryItem(name: "city_id", value: String(cityId)),
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "page_size", value: String(homePageSize)),
+        ]
+        let r = try await api.fetch(BestDealsResponse.self, path: Endpoint.bestDeals(), queryItems: items)
+        let selectedChainIds = Self.selectedChainIdsFromDefaults()
+        let pageDeals: [Product]
+        if selectedChainIds.isEmpty {
+            pageDeals = r.deals
+            bestDealsTotal = r.total
+        } else {
+            // Fallback: /best-deals/ на текущем бэке не всегда применяет chain_ids.
+            // Чтобы фильтр магазинов на главной работал предсказуемо, отфильтровываем
+            // клиентом по наличию выбранной сети в stores.
+            pageDeals = r.deals.filter { product in
+                guard let stores = product.stores, !stores.isEmpty else { return false }
+                return stores.contains { selectedChainIds.contains($0.chainId) }
+            }
+            // Точный total при клиентском fallback неизвестен до полного обхода.
+            bestDealsTotal = nil
+        }
+        var appendedFreshCount: Int? = nil
+        if append {
+            let existing = Set(bestDeals.map(\.uuid))
+            let fresh = pageDeals.filter { !existing.contains($0.uuid) }
+            bestDeals += fresh
+            appendedFreshCount = fresh.count
+        } else {
+            bestDeals = pageDeals
+        }
+        bestDealsPage = page
+        if selectedChainIds.isEmpty, let total = r.total, total > 0 {
+            hasMoreBestDeals = bestDeals.count < total
+        } else if let totalPages = r.totalPages {
+            hasMoreBestDeals = page < totalPages
+        } else {
+            hasMoreBestDeals = pageDeals.count >= homePageSize
+        }
+        if append, appendedFreshCount == 0 {
+            hasMoreBestDeals = false
+        }
+    }
+
+    private static func selectedChainIdsFromDefaults() -> Set<Int> {
+        let raw = UserDefaults.standard.string(forKey: "minprice_favorite_chains_csv") ?? ""
+        let ids = raw
+            .split(separator: ",")
+            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        return Set(ids)
+    }
+
+    private func fetchPriceDrops(cityId: Int, page: Int, append: Bool) async throws {
+        let items = [
+            URLQueryItem(name: "city_id", value: String(cityId)),
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "page_size", value: String(homePageSize)),
+        ]
+        let r = try await api.fetch(DiscountsResponse.self, path: Endpoint.discounts(), queryItems: items)
+        if append {
+            let existing = Set(priceDrops.map(\.uuid))
+            let fresh = r.results.filter { !existing.contains($0.uuid) }
+            priceDrops += fresh
+        } else {
+            priceDrops = r.results
+        }
+        priceDropsPage = page
+        hasMorePriceDrops = page < r.totalPages
     }
 
     /// Категория дня — пытаемся получить готовый агрегат с бэка.
@@ -119,10 +223,16 @@ final class HomeViewModel: ObservableObject {
         if let id = categoryId {
             items.append(URLQueryItem(name: "category_id", value: String(id)))
         }
-        guard let r = try? await api.fetch(StoreBasketResponse.self,
-                                           path: Endpoint.storeBasket(),
-                                           queryItems: items,
-                                           timeout: 6.0) else {
+        let r: StoreBasketResponse
+        do {
+            r = try await api.fetch(StoreBasketResponse.self,
+                                    path: Endpoint.storeBasket(),
+                                    queryItems: items,
+                                    timeout: 6.0)
+        } catch APIError.httpError(let code) where code == 429 {
+            errorMessage = "Слишком много запросов. Подождите пару секунд и попробуйте снова."
+            return true
+        } catch {
             return false
         }
         basketSummary = r

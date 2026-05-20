@@ -8,14 +8,17 @@ final class CartViewModel: ObservableObject {
 
     private let api = APIClient.shared
 
-    func load(cart: Cart?, cityId: Int) async {
-        guard let cart, !isLoading else { return }
+    @discardableResult
+    func load(cart: Cart?, cityId: Int) async -> CartSummaryResponse? {
+        guard let cart, !isLoading else { return nil }
         isLoading = true
         error = nil
 
+        var loadedSummary: CartSummaryResponse?
         do {
             let items = [URLQueryItem(name: "city_id", value: String(cityId))]
-            summary = try await api.fetch(CartSummaryResponse.self, path: Endpoint.cartSummary(cart.uuid), queryItems: items)
+            loadedSummary = try await api.fetch(CartSummaryResponse.self, path: Endpoint.cartSummary(cart.uuid), queryItems: items)
+            summary = loadedSummary
         } catch {
             if !error.isCancellation {
                 self.error = error.localizedDescription
@@ -23,74 +26,88 @@ final class CartViewModel: ObservableObject {
         }
 
         if !Task.isCancelled { isLoading = false }
+        return loadedSummary
     }
 
-    func removeItem(cart: Cart, productUuid: String, cityId: Int) async {
+    @discardableResult
+    func removeItem(cart: Cart, productUuid: String, cityId: Int) async -> CartSummaryResponse? {
         let body = RemoveItemBody(productUuid: productUuid)
         do {
-            var req = api.request(path: Endpoint.cartRemoveItem(cart.uuid))
-            req.httpMethod = "POST"
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            let encoder = JSONEncoder()
-            encoder.keyEncodingStrategy = .convertToSnakeCase
-            req.httpBody = try encoder.encode(body)
-            _ = try await URLSession.shared.data(for: req)
-            await load(cart: cart, cityId: cityId)
-        } catch {}
+            try await api.postVoid(path: Endpoint.cartRemoveItem(cart.uuid), body: body)
+            return await load(cart: cart, cityId: cityId)
+        } catch {
+            if !error.isCancellation {
+                self.error = error.localizedDescription
+                Log.debug("❌ removeItem failed: \(error)")
+            }
+        }
+        return nil
     }
 
-    func removeItems(cart: Cart, productUuids: [String], cityId: Int) async {
-        guard !productUuids.isEmpty else { return }
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
+    @discardableResult
+    func removeItems(cart: Cart, productUuids: [String], cityId: Int) async -> CartSummaryResponse? {
+        guard !productUuids.isEmpty else { return nil }
+        var failedCount = 0
         for uuid in productUuids {
             let body = RemoveItemBody(productUuid: uuid)
-            var req = api.request(path: Endpoint.cartRemoveItem(cart.uuid))
-            req.httpMethod = "POST"
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try? encoder.encode(body)
-            _ = try? await URLSession.shared.data(for: req)
+            do {
+                try await api.postVoid(path: Endpoint.cartRemoveItem(cart.uuid), body: body)
+            } catch {
+                if !error.isCancellation {
+                    failedCount += 1
+                    Log.debug("❌ removeItems failed for \(uuid): \(error)")
+                }
+            }
         }
-        await load(cart: cart, cityId: cityId)
+        if failedCount > 0 {
+            self.error = "Не удалось удалить \(failedCount) из \(productUuids.count) товаров"
+        }
+        return await load(cart: cart, cityId: cityId)
     }
 
-    func updateQuantity(cart: Cart, productUuid: String, quantity: Int, cityId: Int) async {
+    @discardableResult
+    func updateQuantity(cart: Cart, productUuid: String, quantity: Int, cityId: Int) async -> CartSummaryResponse? {
         guard quantity > 0 else {
-            await removeItem(cart: cart, productUuid: productUuid, cityId: cityId)
-            return
+            return await removeItem(cart: cart, productUuid: productUuid, cityId: cityId)
         }
         let body = UpdateQuantityBody(productUuid: productUuid, quantity: quantity)
         do {
-            var req = api.request(path: Endpoint.cartUpdateQuantity(cart.uuid))
-            req.httpMethod = "POST"
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            let encoder = JSONEncoder()
-            encoder.keyEncodingStrategy = .convertToSnakeCase
-            req.httpBody = try encoder.encode(body)
-            _ = try await URLSession.shared.data(for: req)
-            await load(cart: cart, cityId: cityId)
-        } catch {}
+            try await api.patchVoid(path: Endpoint.cartUpdateQuantity(cart.uuid), body: body)
+            return await load(cart: cart, cityId: cityId)
+        } catch {
+            if !error.isCancellation {
+                self.error = error.localizedDescription
+                Log.debug("❌ updateQuantity failed: \(error)")
+            }
+        }
+        return nil
     }
 
-    func clearCart(cart: Cart, cityId: Int) async {
-        guard let summary else { return }
+    @discardableResult
+    func clearCart(cart: Cart, cityId: Int) async -> CartSummaryResponse? {
+        guard let summary else { return nil }
         var uuids = summary.cheapestPerProduct.map { $0.product.uuid }
         uuids.append(contentsOf: summary.unavailableProducts.map { $0.product.uuid })
         let unique = Array(Set(uuids))
-        guard !unique.isEmpty else { return }
+        guard !unique.isEmpty else { return nil }
         isLoading = true
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
+        var failedCount = 0
         for uuid in unique {
             let body = RemoveItemBody(productUuid: uuid)
-            var req = api.request(path: Endpoint.cartRemoveItem(cart.uuid))
-            req.httpMethod = "POST"
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try? encoder.encode(body)
-            _ = try? await URLSession.shared.data(for: req)
+            do {
+                try await api.postVoid(path: Endpoint.cartRemoveItem(cart.uuid), body: body)
+            } catch {
+                if !error.isCancellation {
+                    failedCount += 1
+                    Log.debug("❌ clearCart failed for \(uuid): \(error)")
+                }
+            }
         }
-        isLoading = false
-        await load(cart: cart, cityId: cityId)
+        if failedCount > 0 {
+            self.error = "Не удалось удалить \(failedCount) товаров"
+        }
+        if !Task.isCancelled { isLoading = false }
+        return await load(cart: cart, cityId: cityId)
     }
 
     /// Открыть корзину в нативном приложении магазина (deeplink через Wolt и др.).

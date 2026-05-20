@@ -53,7 +53,7 @@ final class APIClient {
     /// Whitelist — на остальных бэк может вернуть 400 или странную пагинацию,
     /// и краш ForEach с дублями UUID при перелистывании.
     private static let pathsWithStoreFilter: Set<String> = [
-        "/search/", "/discounts/",
+        "/search/", "/discounts/", "/best-deals/",
     ]
 
     func request(path: String, queryItems: [URLQueryItem] = []) -> URLRequest {
@@ -61,7 +61,7 @@ final class APIClient {
         var allItems = queryItems
 
         // Авто-инжект chain_ids только на endpoints, которые задокументировано
-        // принимают этот параметр. Cart/products/best-deals не трогаем.
+        // принимают этот параметр.
         if Self.pathsWithStoreFilter.contains(path),
            queryItems.first(where: { $0.name == "chain_ids" }) == nil {
             if let csv = Self.cachedChainIdsCSV(), !csv.isEmpty {
@@ -103,8 +103,16 @@ final class APIClient {
     }
 
     func postVoid<B: Encodable>(path: String, body: B) async throws {
+        try await sendVoid(method: "POST", path: path, body: body)
+    }
+
+    func patchVoid<B: Encodable>(path: String, body: B) async throws {
+        try await sendVoid(method: "PATCH", path: path, body: body)
+    }
+
+    private func sendVoid<B: Encodable>(method: String, path: String, body: B) async throws {
         var req = request(path: path)
-        req.httpMethod = "POST"
+        req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -113,7 +121,7 @@ final class APIClient {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             let raw = String(data: data.prefix(500), encoding: .utf8) ?? "?"
-            Log.debug("❌ HTTP \(code) for POST \(path): \(raw)")
+            Log.debug("❌ HTTP \(code) for \(method) \(path): \(raw)")
             throw APIError.httpError(statusCode: code)
         }
     }

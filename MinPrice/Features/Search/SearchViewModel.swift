@@ -25,12 +25,21 @@ final class SearchViewModel: ObservableObject {
         case .relevance: return results
         case .priceLow:  return results.sorted { ($0.cheapestPrice ?? .infinity) < ($1.cheapestPrice ?? .infinity) }
         case .priceHigh: return results.sorted { ($0.cheapestPrice ?? 0) > ($1.cheapestPrice ?? 0) }
-        case .discount:  return results.sorted { ($0.priceRange?.savingsPercent ?? 0) > ($1.priceRange?.savingsPercent ?? 0) }
+        case .discount:
+            return results.sorted { lhs, rhs in
+                let l = lhs.meanMinDiscountPercent
+                let r = rhs.meanMinDiscountPercent
+                if l == r {
+                    return (lhs.cheapestPrice ?? .infinity) < (rhs.cheapestPrice ?? .infinity)
+                }
+                return l > r
+            }
         }
     }
 
     private let api = APIClient.shared
     private var searchTask: Task<Void, Never>?
+    private var searchSessionId = UUID()
     private let recentKey = "recent_searches_v1"
     private let maxRecent = 8
 
@@ -39,6 +48,7 @@ final class SearchViewModel: ObservableObject {
     func searchImmediate(cityId: Int) async {
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         searchTask?.cancel()
+        searchSessionId = UUID()
         await performSearch(cityId: cityId, page: 0, append: false)
     }
 
@@ -50,6 +60,7 @@ final class SearchViewModel: ObservableObject {
         }
 
         searchTask?.cancel()
+        searchSessionId = UUID()
         page = 0
 
         searchTask = Task {
@@ -75,10 +86,12 @@ final class SearchViewModel: ObservableObject {
     }
 
     private func performSearch(cityId: Int, page: Int, append: Bool) async {
+        let requestQuery = query
+        let requestSession = searchSessionId
         isLoading = true
 
         let items = [
-            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "q", value: requestQuery),
             URLQueryItem(name: "city_id", value: String(cityId)),
             URLQueryItem(name: "page", value: String(page)),
             URLQueryItem(name: "hitsPerPage", value: "20"),
@@ -86,6 +99,7 @@ final class SearchViewModel: ObservableObject {
 
         do {
             let response = try await api.fetch(SearchResponse.self, path: Endpoint.search(), queryItems: items)
+            guard requestSession == searchSessionId, requestQuery == query else { return }
             if append {
                 // Дедуп — иначе ForEach падает с дублями UUID на скролле.
                 let existing = Set(results.map(\.uuid))
@@ -97,10 +111,12 @@ final class SearchViewModel: ObservableObject {
             }
             self.page = response.page
             hasMore = response.page + 1 < response.nbPages
-            if !append && !query.isEmpty { saveToRecent(query) }
+            if !append && !requestQuery.isEmpty { saveToRecent(requestQuery) }
         } catch {}
 
-        isLoading = false
+        if requestSession == searchSessionId {
+            isLoading = false
+        }
     }
 
     private func saveToRecent(_ q: String) {

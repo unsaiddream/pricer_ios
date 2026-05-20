@@ -17,13 +17,16 @@ final class CartStore: ObservableObject {
         do {
             let response = try await api.fetch(CartsResponse.self, path: Endpoint.carts())
             cart = response.results.first(where: { $0.isActive })
-            // Don't set itemsCount here — CartView summary is the authoritative source
+            itemsCount = cart?.itemsCount ?? 0
+            refreshCount += 1
             syncWidget()
             updateBadge()
         } catch {
             // On error (404, network) reset to safe empty state
             cart = nil
             itemsCount = 0
+            refreshCount += 1
+            syncWidget()
             updateBadge()
         }
     }
@@ -32,8 +35,12 @@ final class CartStore: ObservableObject {
         let body = AddItemBody(productUuid: productUuid, quantity: quantity)
         do {
             let response = try await api.post(QuickAddResponse.self, path: Endpoint.cartQuickAdd(), body: body)
-            cart = try? await api.fetch(Cart.self, path: Endpoint.cart(response.cartUuid))
-            itemsCount = response.itemsCount
+            do {
+                cart = try await api.fetch(Cart.self, path: Endpoint.cart(response.cartUuid))
+            } catch {
+                Log.debug("⚠️ quickAdd: failed to refresh cart after add: \(error)")
+            }
+            itemsCount = cart?.itemsCount ?? response.itemsCount
             refreshCount += 1
             syncWidget()
             updateBadge()
@@ -48,13 +55,37 @@ final class CartStore: ObservableObject {
         }
     }
 
-    func syncWidget() {
-        var total: Double = 0
-        if let items = cart?.items {
-            for item in items {
+    func apply(summary: CartSummaryResponse, quantityOverrides: [String: Int] = [:]) {
+        let snapshot = summary.cartStateSnapshot(quantityOverrides: quantityOverrides)
+        cart = snapshot.cart
+        itemsCount = snapshot.itemsCount
+        refreshCount += 1
+        syncWidget(totalOverride: snapshot.total)
+        updateBadge()
+    }
+
+    func applyLocalQuantity(productUuid: String, quantity: Int, totalOverride: Double? = nil) {
+        guard let cart else { return }
+        let updatedItems = cart.items.compactMap { item -> CartItem? in
+            guard item.product.uuid == productUuid else { return item }
+            guard quantity > 0 else { return nil }
+            return item.replacingQuantity(quantity)
+        }
+        self.cart = cart.replacingItems(updatedItems)
+        itemsCount = updatedItems.reduce(0) { $0 + $1.quantity }
+        syncWidget(totalOverride: totalOverride)
+        updateBadge()
+    }
+
+    func syncWidget(totalOverride: Double? = nil) {
+        let total: Double
+        if let totalOverride {
+            total = totalOverride
+        } else {
+            total = cart?.items.reduce(0) { partialResult, item in
                 let unitPrice: Double = item.product.cheapestPrice ?? 0
-                total += unitPrice * Double(item.quantity)
-            }
+                return partialResult + unitPrice * Double(item.quantity)
+            } ?? 0
         }
         WidgetDataStore.syncCart(count: itemsCount, total: total)
     }
@@ -65,13 +96,24 @@ final class CartStore: ObservableObject {
             Task {
                 let center = UNUserNotificationCenter.current()
                 let status = await center.notificationSettings().authorizationStatus
-                if status == .notDetermined {
-                    try? await center.requestAuthorization(options: [.badge])
+                guard Self.canUpdateBadge(for: status) else {
+                    return
                 }
-                try? await center.setBadgeCount(count)
+                _ = try? await center.setBadgeCount(count)
             }
         } else {
             UIApplication.shared.applicationIconBadgeNumber = count
+        }
+    }
+
+    nonisolated static func canUpdateBadge(for status: UNAuthorizationStatus) -> Bool {
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            return true
+        case .notDetermined, .denied:
+            return false
+        @unknown default:
+            return false
         }
     }
 
@@ -79,25 +121,19 @@ final class CartStore: ObservableObject {
         guard let cartUuid = cart?.uuid else { return }
         let currentQty = cart?.items.first(where: { $0.product.uuid == productUuid })?.quantity ?? 0
         guard currentQty > 0 else { return }
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         do {
             if currentQty <= 1 {
                 let body = RemoveItemBody(productUuid: productUuid)
-                var req = api.request(path: Endpoint.cartRemoveItem(cartUuid))
-                req.httpMethod = "POST"
-                req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                req.httpBody = try encoder.encode(body)
-                _ = try await URLSession.shared.data(for: req)
+                try await api.postVoid(path: Endpoint.cartRemoveItem(cartUuid), body: body)
             } else {
                 let body = UpdateQuantityBody(productUuid: productUuid, quantity: currentQty - 1)
-                var req = api.request(path: Endpoint.cartUpdateQuantity(cartUuid))
-                req.httpMethod = "POST"
-                req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                req.httpBody = try encoder.encode(body)
-                _ = try await URLSession.shared.data(for: req)
+                try await api.patchVoid(path: Endpoint.cartUpdateQuantity(cartUuid), body: body)
             }
-            cart = try? await api.fetch(Cart.self, path: Endpoint.cart(cartUuid))
+            do {
+                cart = try await api.fetch(Cart.self, path: Endpoint.cart(cartUuid))
+            } catch {
+                Log.debug("⚠️ quickDecrement: failed to refresh cart after update: \(error)")
+            }
             itemsCount = cart?.itemsCount ?? max(0, itemsCount - 1)
             refreshCount += 1
             syncWidget()
@@ -106,6 +142,7 @@ final class CartStore: ObservableObject {
         } catch {
             HapticManager.error()
             showToast("Не удалось изменить", isError: true)
+            CrashReporter.capture(error, context: ["op": "cart_quick_decrement", "product_uuid": productUuid])
         }
     }
 

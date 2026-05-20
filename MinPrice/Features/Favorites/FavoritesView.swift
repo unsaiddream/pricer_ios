@@ -46,23 +46,14 @@ struct FavoritesView: View {
             Group {
                 if favoritesStore.favorites.isEmpty {
                     VStack(spacing: 18) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.appPrimary.opacity(0.08))
-                                .frame(width: 90, height: 90)
-                            Image(systemName: "star")
-                                .font(.system(size: 40))
-                                .foregroundStyle(Color.appPrimary.opacity(0.45))
-                        }
-                        VStack(spacing: 6) {
-                            Text("Нет избранных товаров")
-                                .font(.jb(17, weight: .bold))
-                                .foregroundStyle(Color.appForeground)
-                            Text("Нажмите ★ на странице товара,\nчтобы добавить в избранное")
-                                .font(.jb(13))
-                                .foregroundStyle(Color.appMuted)
-                                .multilineTextAlignment(.center)
-                        }
+                        ErrorStateView(
+                            .empty(
+                                title: "Нет избранных товаров",
+                                message: "Добавляйте товары в избранное, чтобы отслеживать цену",
+                                systemImage: "star"
+                            )
+                        )
+                        .frame(maxHeight: 260)
                         Button {
                             NotificationCenter.default.post(name: .switchTab, object: Tab.catalog)
                         } label: {
@@ -85,25 +76,34 @@ struct FavoritesView: View {
                     .background(Color.appBackground)
                 } else {
                     ScrollView {
-                        HStack(alignment: .center) {
+                        HStack(alignment: .top) {
                             VStack(alignment: .leading, spacing: 3) {
                                 BrandTitle(text: "Избранное",
                                            eyebrow: "Отслеживаем ваши товары",
                                            accent: Color.appPrimary)
-                                if vm.isLoading {
-                                    HStack(spacing: 4) {
-                                        ProgressView()
-                                            .scaleEffect(0.6)
-                                            .tint(Color.appPrimary)
-                                        Text("Обновление цен...")
-                                            .font(.jb(11))
-                                            .foregroundStyle(Color.appMuted)
+                                HStack(spacing: 8) {
+                                    AppMetricPill(
+                                        icon: "star.fill",
+                                        text: "\(favoritesStore.favorites.count) товаров",
+                                        tint: Color.appPrimary
+                                    )
+                                    if vm.isLoading {
+                                        HStack(spacing: 5) {
+                                            ProgressView()
+                                                .scaleEffect(0.62)
+                                                .tint(Color.appPrimary)
+                                            Text("Обновляю")
+                                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                                .foregroundStyle(Color.appMuted)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(Color.appCard, in: Capsule())
+                                        .overlay(Capsule().stroke(Color.appBorder, lineWidth: 0.7))
                                     }
                                 }
                             }
                             Spacer()
-                            // Если алерты включены — рядом с колокольчиком
-                            // показываем выбранный порог (тапается → picker).
                             if alertsEnabled {
                                 Button {
                                     showThresholdPicker = true
@@ -119,26 +119,36 @@ struct FavoritesView: View {
                             }
                             Button {
                                 Task { await toggleAlerts() }
-                            } label: {
-                                Image(systemName: alertsEnabled ? "bell.fill" : "bell")
-                                    .font(.system(size: 18))
-                                    .foregroundStyle(alertsEnabled ? Color.appPrimary : Color.appMuted)
-                                    .frame(width: 36, height: 36)
-                                    .background(Color.appCard, in: Circle())
-                                    .neumorphicButton()
-                            }
-                        }
+	                            } label: {
+	                                Image(systemName: alertsEnabled ? "bell.fill" : "bell")
+	                                    .font(.system(size: 18))
+	                                    .foregroundStyle(alertsEnabled ? Color.appPrimary : Color.appMuted)
+	                                    .frame(width: 40, height: 40)
+	                                    .background(Color.appCard, in: Circle())
+	                                    .overlay(Circle().stroke(Color.appBorder, lineWidth: 1))
+	                            }
+	                        }
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                         .padding(.bottom, 4)
 
-                        if vm.isLoading && vm.enriched.isEmpty {
-                            SkeletonCardGrid(count: favoritesStore.favorites.count)
-                                .padding(.horizontal, 16)
-                                .padding(.top, 8)
-                        } else {
-                            LazyVGrid(columns: columns, spacing: 12) {
-                                ForEach(displayProducts) { product in
+	                        if vm.isLoading && vm.enriched.isEmpty {
+	                            SkeletonCardGrid(count: favoritesStore.favorites.count)
+	                                .padding(.horizontal, 16)
+	                                .padding(.top, 8)
+	                        } else {
+	                            AppSectionHeader(
+	                                title: "Ваши товары",
+	                                subtitle: "С актуальными ценами",
+	                                icon: "bag.fill",
+	                                accent: Color.appPrimary
+	                            )
+	                            .padding(.horizontal, 16)
+	                            .padding(.top, 8)
+	                            .padding(.bottom, 10)
+
+	                            LazyVGrid(columns: columns, spacing: 12) {
+	                                ForEach(displayProducts) { product in
                                     NavigationLink(destination: ProductView(uuid: product.uuid)) {
                                         ProductCardWrapper(product: product)
                                     }
@@ -155,11 +165,11 @@ struct FavoritesView: View {
                                             Label("В корзину", systemImage: "cart.badge.plus")
                                         }
                                     }
-                                }
-                            }
-                            .padding(16)
-                            .padding(.bottom, 160)
-                        }
+	                                }
+	                            }
+	                            .padding(.horizontal, 16)
+	                            .padding(.bottom, 160)
+	                        }
                     }
                     .background(Color.appBackground)
                     .refreshable {
