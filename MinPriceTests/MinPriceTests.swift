@@ -233,4 +233,33 @@ final class MinPriceTests: XCTestCase {
 
         XCTAssertTrue(summary.hasVisibleItems)
     }
+
+    func testPriceAlertNextCheckAfterCompletionUsesNextDayRandomWindow() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 6 * 3600)!
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 5,
+            day: 20,
+            hour: 18,
+            minute: 30
+        )))
+
+        let next = PriceAlertManager.nextDailyCheckDate(afterCompletedCheckAt: now, calendar: calendar) { 0.5 }
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: next)
+
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 5)
+        XCTAssertEqual(components.day, 21)
+        XCTAssertGreaterThanOrEqual(components.hour ?? 0, 9)
+        XCTAssertLessThan(components.hour ?? 24, 21)
+    }
+
+    func testPriceAlertDueGateRunsOnlyWhenScheduledTimeHasArrived() throws {
+        let now = Date(timeIntervalSince1970: 1_779_262_000)
+
+        XCTAssertTrue(PriceAlertManager.isDailyCheckDue(now: now, nextCheckDate: nil))
+        XCTAssertTrue(PriceAlertManager.isDailyCheckDue(now: now, nextCheckDate: now.addingTimeInterval(-1)))
+        XCTAssertFalse(PriceAlertManager.isDailyCheckDue(now: now, nextCheckDate: now.addingTimeInterval(60)))
+    }
 }

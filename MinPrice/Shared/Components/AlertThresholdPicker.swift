@@ -15,7 +15,7 @@ struct AlertThresholdPicker: View {
                 Text("Порог уведомлений")
                     .font(.system(size: 22, weight: .black, design: .rounded))
                     .foregroundStyle(Color.appForeground)
-                Text("Уведомим когда цена в избранном упадёт\nне меньше чем на")
+                Text("Проверяем избранное раз в день и уведомляем,\nкогда цена упадёт не меньше чем на")
                     .font(.system(size: 13, design: .rounded))
                     .foregroundStyle(Color.appMuted)
                     .multilineTextAlignment(.center)
@@ -97,10 +97,10 @@ struct AlertThresholdPicker: View {
 
     private var hint: String {
         switch threshold {
-        case ...3:    return "Будет много уведомлений — даже на мелкие колебания"
-        case 4...7:   return "Сбалансированный вариант — уведомления только о заметных скидках"
-        case 8...15:  return "Только сильные снижения — реже, но важнее"
-        default:      return "Только большие распродажи — крайне редко"
+        case ...3:    return "Самый чувствительный режим: дневной дайджест даже по мелким снижениям"
+        case 4...7:   return "Сбалансированный режим: раз в день только заметные скидки"
+        case 8...15:  return "Редкие уведомления: только сильные дневные снижения"
+        default:      return "Почти без шума: только большие распродажи"
         }
     }
 }

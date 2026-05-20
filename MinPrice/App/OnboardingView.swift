@@ -275,7 +275,7 @@ struct OnboardingView: View {
                     .font(.system(size: 26, weight: .black, design: .rounded))
                     .kerning(-0.5)
                     .foregroundStyle(Color.appForeground)
-                Text("Сообщим в push когда цена в избранном\nупадёт сильнее выбранного порога")
+                Text("Раз в день проверим избранное и пришлём push,\nесли цена упала сильнее выбранного порога")
                     .font(.system(size: 13, design: .rounded))
                     .foregroundStyle(Color.appMuted)
                     .multilineTextAlignment(.center)
