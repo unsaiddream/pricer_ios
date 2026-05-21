@@ -75,6 +75,21 @@ private func storeLabel(_ source: String?) -> String { storeLabel(slug: nil, sou
 private func storeColor(_ source: String?) -> Color  { storeColor(slug: nil, source: source) }
 private func storeAsset(_ source: String?) -> String? { storeAsset(slug: nil, source: source) }
 
+private func formatPriceTg(_ value: Double) -> String {
+    let intValue = Int(round(value))
+    let useGrouping = abs(intValue) >= 10_000
+    if useGrouping {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        formatter.maximumFractionDigits = 0
+        formatter.usesGroupingSeparator = true
+        let formatted = formatter.string(from: NSNumber(value: intValue)) ?? String(intValue)
+        return "\(formatted) тг"
+    }
+    return "\(intValue) тг"
+}
+
 private func fmt(_ v: Double) -> String {
     formatPriceTg(v)
 }

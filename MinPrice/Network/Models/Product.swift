@@ -37,7 +37,11 @@ struct StorePrice: Codable, Identifiable {
 }
 
 struct Product: Codable, Identifiable {
-    let id: Int
+    /// Identifiable.id — uuid (String), а не int id из БД. UUID гарантированно
+    /// уникален на бэке, int id может конфликтовать при объединении пагинации
+    /// → ForEach падает с "ID occurs multiple times" на скролле.
+    var id: String { uuid }
+    let dbId: Int
     let uuid: String
     let title: String
     let brand: String?
@@ -60,7 +64,8 @@ struct Product: Codable, Identifiable {
     var maxPrice: Double? { _maxPrice?.value }
 
     enum CodingKeys: String, CodingKey {
-        case id, uuid, title, brand, imageUrl, measureUnit, measureUnitKind, measureUnitQty, packCount, isActive, linkedStoresCount, stores, description, priceRange
+        case uuid, title, brand, imageUrl, measureUnit, measureUnitKind, measureUnitQty, packCount, isActive, linkedStoresCount, stores, description, priceRange
+        case dbId = "id"
         case _minPrice = "minPrice"
         case _maxPrice = "maxPrice"
     }
@@ -78,6 +83,26 @@ struct Product: Codable, Identifiable {
 
     var cheapestStore: PriceRangeStore? {
         priceRange?.stores.first(where: { $0.price == priceRange?.min })
+    }
+
+    /// Скидка по формуле: (mean(price) - min(price)) / mean(price) * 100.
+    /// Используем только in-stock цены по магазинам.
+    var meanMinDiscountPercent: Double {
+        let prices = inStockPrices
+        guard !prices.isEmpty, let minPrice = prices.min() else { return 0 }
+        let meanPrice = prices.reduce(0, +) / Double(prices.count)
+        guard meanPrice > 0 else { return 0 }
+        return max(0, (meanPrice - minPrice) / meanPrice * 100)
+    }
+
+    private var inStockPrices: [Double] {
+        if let stores, !stores.isEmpty {
+            return stores.filter(\.inStock).map(\.price)
+        }
+        if let rangeStores = priceRange?.stores, !rangeStores.isEmpty {
+            return rangeStores.filter(\.inStock).map(\.price)
+        }
+        return []
     }
 }
 
@@ -124,8 +149,29 @@ struct ProductsResponse: Codable {
     let results: [Product]
 }
 
-struct BestDealsResponse: Codable {
+struct BestDealsResponse: Decodable {
     let deals: [Product]
+    let total: Int?
+    let page: Int?
+    let pageSize: Int?
+    let totalPages: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case deals, results, total, page, pageSize, totalPages
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let d = try c.decodeIfPresent([Product].self, forKey: .deals) {
+            deals = d
+        } else {
+            deals = try c.decodeIfPresent([Product].self, forKey: .results) ?? []
+        }
+        total = try c.decodeIfPresent(Int.self, forKey: .total)
+        page = try c.decodeIfPresent(Int.self, forKey: .page)
+        pageSize = try c.decodeIfPresent(Int.self, forKey: .pageSize)
+        totalPages = try c.decodeIfPresent(Int.self, forKey: .totalPages)
+    }
 }
 
 struct PriceDropsResponse: Codable {

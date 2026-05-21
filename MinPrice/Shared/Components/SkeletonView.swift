@@ -1,28 +1,36 @@
 import SwiftUI
 
 // MARK: - Shimmer modifier
+// Правильный shimmer — диагональный градиент-полоса проходит по содержимому,
+// маскируется через .mask чтобы блик отображался ТОЛЬКО на форме контента,
+// а не вылазил за границы (как было раньше).
 
 struct ShimmerModifier: ViewModifier {
-    @State private var phase: CGFloat = -1
+    @State private var phase: CGFloat = -1.0
 
     func body(content: Content) -> some View {
         content
             .overlay(
                 GeometryReader { geo in
+                    let band = geo.size.width * 0.3
                     LinearGradient(
                         stops: [
                             .init(color: .clear, location: 0),
-                            .init(color: .white.opacity(0.35), location: 0.4),
-                            .init(color: .clear, location: 0.8),
+                            .init(color: .white.opacity(0.55), location: 0.5),
+                            .init(color: .clear, location: 1.0),
                         ],
-                        startPoint: .init(x: phase, y: 0.5),
-                        endPoint: .init(x: phase + 0.8, y: 0.5)
+                        startPoint: .topLeading, endPoint: .bottomTrailing
                     )
+                    .frame(width: band)
+                    .offset(x: -band + (geo.size.width + band * 2) * phase)
+                    .blendMode(.plusLighter)
+                    .allowsHitTesting(false)
                 }
             )
+            .mask(content)
             .onAppear {
-                withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) {
-                    phase = 1.4
+                withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false)) {
+                    phase = 1.0
                 }
             }
     }
@@ -134,6 +142,32 @@ struct SkeletonProductDetail: View {
             .padding(16)
         }
         .shimmer()
+    }
+}
+
+// MARK: - Pagination indicator (used at bottom of paginated lists)
+
+/// Пилюля "загружаю ещё..." вместо голого ProgressView внизу списка.
+/// Дизайн консистентный с тостами — appCard + appBorder + spinner.
+struct PaginationLoader: View {
+    var text: String = "Загружаю ещё..."
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.7)
+                .tint(Color.appPrimary)
+            Text(text)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(Color.appMuted)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.appCard, in: Capsule())
+        .overlay(Capsule().stroke(Color.appBorder, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
     }
 }
 

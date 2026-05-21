@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 enum CatalogSort: String, CaseIterable {
     case priceAsc  = "Дешевле"
@@ -9,42 +10,40 @@ enum CatalogSort: String, CaseIterable {
 @MainActor
 final class CatalogViewModel: ObservableObject {
     @Published var categories: [Category] = []
-    @Published var products: [Product] = []
+    @Published var products: [Product] = [] {
+        didSet { recomputeFiltered() }
+    }
     @Published var isLoading = false
     @Published var page = 1
     @Published var hasMore = false
-    @Published var sort: CatalogSort = .priceAsc
-    @Published var searchQuery: String = ""
+    @Published var sort: CatalogSort = .priceAsc {
+        didSet { recomputeFiltered() }
+    }
+    @Published var searchQuery: String = "" {
+        didSet { recomputeFiltered() }
+    }
+    // Кэш — пересчитывается только при изменении products/sort/searchQuery
+    @Published private(set) var filteredProducts: [Product] = []
 
     private let api = APIClient.shared
     private var currentCategory: Category?
 
-    var filteredProducts: [Product] {
+    private func recomputeFiltered() {
         let base = searchQuery.isEmpty ? products : products.filter {
             $0.title.localizedCaseInsensitiveContains(searchQuery)
         }
         switch sort {
         case .priceAsc:
-            return base.sorted { ($0.cheapestPrice ?? .infinity) < ($1.cheapestPrice ?? .infinity) }
+            filteredProducts = base.sorted { ($0.cheapestPrice ?? .infinity) < ($1.cheapestPrice ?? .infinity) }
         case .priceDesc:
-            return base.sorted { ($0.cheapestPrice ?? 0) > ($1.cheapestPrice ?? 0) }
+            filteredProducts = base.sorted { ($0.cheapestPrice ?? 0) > ($1.cheapestPrice ?? 0) }
         case .discount:
-            return base.sorted { discountPct($0) > discountPct($1) }
+            filteredProducts = base.sorted { discountPct($0) > discountPct($1) }
         }
     }
 
     private func discountPct(_ p: Product) -> Double {
-        if let stores = p.stores,
-           let best = stores.filter({ $0.inStock }).min(by: { $0.price < $1.price }),
-           let prev = best.previousPrice, prev > best.price {
-            return (prev - best.price) / prev * 100
-        }
-        if let stores = p.priceRange?.stores,
-           let best = stores.filter({ $0.inStock }).min(by: { $0.price < $1.price }),
-           let prev = best.previousPrice, prev > best.price {
-            return (prev - best.price) / prev * 100
-        }
-        return 0
+        p.meanMinDiscountPercent
     }
 
     func loadCategories() async {
@@ -60,12 +59,16 @@ final class CatalogViewModel: ObservableObject {
     }
 
     func selectCategory(_ category: Category, cityId: Int) async {
+        // Если уже выбрана эта же категория — не сбрасываем state (защита от
+        // повторного входа через NavigationLink, чтобы не было thrash'а грида).
+        if currentCategory?.id == category.id, !products.isEmpty { return }
         currentCategory = category
-        products = []
         page = 1
         hasMore = false
         searchQuery = ""
         sort = .priceAsc
+        // products очищается атомарно в mergeProducts(append: false) после ответа.
+        // Не делаем products = [] здесь, иначе LazyVGrid дёргается на transition.
         await loadProducts(category: category, cityId: cityId, append: false)
     }
 
@@ -88,7 +91,7 @@ final class CatalogViewModel: ObservableObject {
 
         do {
             let response = try await api.fetch(SearchResponse.self, path: Endpoint.search(), queryItems: items)
-            if append { products += response.hits } else { products = response.hits }
+            mergeProducts(response.hits, append: append)
             hasMore = response.page + 1 < response.nbPages
             if hasMore { page += 1 }
         } catch {
@@ -99,8 +102,6 @@ final class CatalogViewModel: ObservableObject {
     }
 
     private func loadProductsFallback(category: Category, cityId: Int, append: Bool) async {
-        // /api/products/ — DRF, фильтр canonical_category_id (не canonical_category!)
-        // Пагинация 1-индексированная, у нас page стартует с 1 — нормально.
         let items = [
             URLQueryItem(name: "canonical_category_id", value: String(category.id)),
             URLQueryItem(name: "city_id", value: String(cityId)),
@@ -108,9 +109,22 @@ final class CatalogViewModel: ObservableObject {
         ]
         do {
             let response = try await api.fetch(ProductsResponse.self, path: Endpoint.products(), queryItems: items)
-            if append { products += response.results } else { products = response.results }
+            mergeProducts(response.results, append: append)
             hasMore = response.next != nil
             if hasMore { page += 1 }
         } catch {}
+    }
+
+    /// Дедуп по UUID при append — иначе ForEach в LazyVGrid падает с
+    /// "ID ... occurs multiple times within the collection" если бэк
+    /// вернул один товар на двух страницах.
+    private func mergeProducts(_ incoming: [Product], append: Bool) {
+        if append {
+            let existing = Set(products.map(\.uuid))
+            let fresh = incoming.filter { !existing.contains($0.uuid) }
+            products = products + fresh
+        } else {
+            products = incoming
+        }
     }
 }

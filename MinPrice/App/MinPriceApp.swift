@@ -15,6 +15,7 @@ struct MinPriceApp: App {
         // Sentry — стартует первым чтобы поймать падения на ранней инициализации.
         // Если DSN не задан, no-op.
         CrashReporter.start()
+        AppMetricaReporter.start()
         PriceAlertManager.shared.registerBGTask()
     }
 
@@ -52,9 +53,11 @@ struct MinPriceApp: App {
                     CrashReporter.setGuestUUID(APIClient.shared.guestUUID)
                     async let cities: () = cityStore.loadCities()
                     async let cart: () = cartStore.loadActiveCart(cityId: cityStore.selectedCityId)
-                    _ = await (cities, cart)
+                    async let chains: () = FavoriteStoresStore.shared.loadChains()
+                    _ = await (cities, cart, chains)
                 }
                 .onOpenURL { url in
+                    AppMetricaReporter.trackOpenURL(url)
                     // minprice://product/UUID
                     guard url.scheme == "minprice" else { return }
                     if url.host == "product", let uuid = url.pathComponents.dropFirst().first {

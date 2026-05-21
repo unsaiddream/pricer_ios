@@ -68,24 +68,23 @@ struct SearchView: View {
                                     LazyVGrid(columns: columns, spacing: 12) {
                                         ForEach(vm.sortedResults) { product in
                                             NavigationLink(value: product.uuid) {
-                                                ProductCard(product: product) {
-                                                    Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
-                                                }.equatable()
+                                                ProductCardWrapper(product: product)
                                             }
                                             .buttonStyle(.pressScale)
-                                            .onAppear {
-                                                if product.uuid == vm.results.last?.uuid {
-                                                    Task { await vm.loadMore(cityId: cityStore.selectedCityId) }
-                                                }
-                                            }
                                         }
                                     }
                                     .padding(.horizontal, 16)
 
+                                    if !vm.results.isEmpty {
+                                        Color.clear
+                                            .frame(height: 1)
+                                            .onAppear {
+                                                Task { await vm.loadMore(cityId: cityStore.selectedCityId) }
+                                            }
+                                    }
+
                                     if vm.isLoading {
-                                        ProgressView()
-                                            .tint(Color.appPrimary)
-                                            .padding(.vertical, 16)
+                                        PaginationLoader()
                                     }
                                 }
                                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -259,56 +258,68 @@ private struct RecentSearchesView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("Последние запросы")
-                        .font(.jb(15, weight: .semibold))
-                        .foregroundStyle(Color.appForeground)
-                    Spacer()
+                    AppSectionHeader(
+                        title: "Последние запросы",
+                        subtitle: "\(searches.count) сохранено",
+                        icon: "clock.fill",
+                        accent: Color.appPrimary
+                    )
                     Button(action: onClear) {
-                        Text("Очистить")
-                            .font(.jb(13))
-                            .foregroundStyle(Color.appPrimary)
+                        Image(systemName: "trash")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.appMuted)
+                            .frame(width: 34, height: 34)
+                            .background(Color.appCard, in: Circle())
+                            .overlay(Circle().stroke(Color.appBorder, lineWidth: 1))
                     }
+                    .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
 
-                VStack(spacing: 0) {
+                VStack(spacing: 8) {
                     ForEach(Array(searches.enumerated()), id: \.offset) { idx, query in
-                        Button { onSelect(query) } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "clock")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(Color.appMuted)
-                                Text(query)
-                                    .font(.jb(14))
-                                    .foregroundStyle(Color.appForeground)
-                                    .lineLimit(1)
-                                Spacer()
-                                Image(systemName: "arrow.up.left")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.appMuted.opacity(0.5))
+                        HStack(spacing: 10) {
+                            Button { onSelect(query) } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "clock")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(Color.appMuted)
+                                    Text(query)
+                                        .font(.jb(14))
+                                        .foregroundStyle(Color.appForeground)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Image(systemName: "arrow.up.left")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(Color.appMuted.opacity(0.5))
+                                }
+                                .contentShape(Rectangle())
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 13)
-                        }
-                        .buttonStyle(.plain)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
+                            .buttonStyle(.plain)
+
+                            Button {
                                 withAnimation { onDelete(query) }
                             } label: {
-                                Label("Удалить", systemImage: "trash")
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(Color.appMuted)
+                                    .frame(width: 26, height: 26)
+                                    .background(Color.appBackground, in: Circle())
                             }
+                            .buttonStyle(.plain)
                         }
-
-                        if idx < searches.count - 1 {
-                            Divider().overlay(Color.appBorder).padding(.leading, 44)
-                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.appBorder, lineWidth: 1)
+                        )
                     }
                 }
-                .background(Color.appCard, in: RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.appBorder, lineWidth: 1))
                 .padding(.horizontal, 16)
             }
             .padding(.bottom, 100)
@@ -319,10 +330,21 @@ private struct RecentSearchesView: View {
 
 // MARK: - Empty state
 
-private let popularSearches = [
-    ("🥛", "Молоко"), ("🍞", "Хлеб"), ("🧀", "Сыр"),
-    ("🥚", "Яйца"), ("🧴", "Шампунь"), ("☕️", "Кофе"),
-    ("🍫", "Шоколад"), ("🧹", "Бытовая химия"),
+private struct PopularSearch {
+    let emoji: String
+    let label: String
+    let tint: Color
+}
+
+private let popularSearches: [PopularSearch] = [
+    .init(emoji: "🥛", label: "Молоко",        tint: .blue),
+    .init(emoji: "🍞", label: "Хлеб",          tint: .orange),
+    .init(emoji: "🧀", label: "Сыр",           tint: .yellow),
+    .init(emoji: "🥚", label: "Яйца",          tint: .yellow),
+    .init(emoji: "🧴", label: "Шампунь",       tint: .teal),
+    .init(emoji: "☕️", label: "Кофе",         tint: .brown),
+    .init(emoji: "🍫", label: "Шоколад",       tint: .brown),
+    .init(emoji: "🧹", label: "Бытовая химия", tint: .green),
 ]
 
 private struct SearchEmptyState: View {
@@ -331,46 +353,73 @@ private struct SearchEmptyState: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                VStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 40))
-                        .foregroundStyle(Color.appPrimary.opacity(0.35))
-                    Text("Найдите самые низкие цены")
-                        .font(.jb(16, weight: .semibold))
-                        .foregroundStyle(Color.appForeground)
-                    Text("Сравниваем Magnum, Arbuz, Airba Fresh\nи Small в вашем городе")
-                        .font(.jb(13))
-                        .foregroundStyle(Color.appMuted)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(2)
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient.brandPrimary.opacity(0.12))
+                            .frame(width: 86, height: 86)
+                        Circle()
+                            .stroke(LinearGradient.brandPrimary.opacity(0.20), lineWidth: 1)
+                            .frame(width: 86, height: 86)
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 38, weight: .semibold))
+                            .foregroundStyle(LinearGradient.brandPrimary)
+                    }
+
+                    VStack(spacing: 4) {
+                        Text("Найдите самые низкие цены")
+                            .font(.system(size: 17, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Color.appForeground)
+                        Text("Сравниваем 6 магазинов в вашем городе")
+                            .font(.system(size: 13, design: .rounded))
+                            .foregroundStyle(Color.appMuted)
+                            .multilineTextAlignment(.center)
+                    }
                 }
                 .padding(.top, 40)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Популярные запросы")
-                        .font(.jb(13, weight: .semibold))
-                        .foregroundStyle(Color.appMuted)
-                        .padding(.horizontal, 16)
+                    AppSectionHeader(
+                        title: "Популярные запросы",
+                        subtitle: "Начните с частых товаров",
+                        icon: "sparkle.magnifyingglass",
+                        accent: Color.appPrimary
+                    )
+                    .padding(.horizontal, 16)
 
                     LazyVGrid(
                         columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
-                        spacing: 10
+                        spacing: 12
                     ) {
-                        ForEach(popularSearches, id: \.1) { emoji, label in
-                            Button { onSelect(label) } label: {
-                                VStack(spacing: 4) {
-                                    Text(emoji)
-                                        .font(.system(size: 24))
-                                        .frame(width: 48, height: 48)
-                                        .background(Color.appCard, in: RoundedRectangle(cornerRadius: 12))
-                                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.appBorder, lineWidth: 1))
-                                    Text(label)
-                                        .font(.jb(11))
-                                        .foregroundStyle(Color.appMuted)
+                        ForEach(popularSearches, id: \.label) { item in
+                            Button { onSelect(item.label) } label: {
+                                VStack(spacing: 6) {
+                                    ZStack {
+                                        // Цветной градиент на каждом тайле — пища для глаз
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [item.tint.opacity(0.20), item.tint.opacity(0.08)],
+                                                    startPoint: .topLeading, endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                    .stroke(item.tint.opacity(0.30), lineWidth: 0.8)
+                                            )
+                                        Text(item.emoji)
+                                            .font(.system(size: 26))
+                                    }
+                                    .frame(width: 54, height: 54)
+
+                                    Text(item.label)
+                                        .font(.jb(11, weight: .medium))
+                                        .foregroundStyle(Color.appForeground.opacity(0.85))
                                         .lineLimit(1)
+                                        .minimumScaleFactor(0.85)
                                 }
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressScale)
                         }
                     }
                     .padding(.horizontal, 16)

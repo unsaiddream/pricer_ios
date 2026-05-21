@@ -6,6 +6,16 @@ struct CartItem: Codable, Identifiable {
     let quantity: Int
     let addedAt: String
     let updatedAt: String
+
+    func replacingQuantity(_ quantity: Int) -> CartItem {
+        CartItem(
+            id: id,
+            product: product,
+            quantity: quantity,
+            addedAt: addedAt,
+            updatedAt: updatedAt
+        )
+    }
 }
 
 struct Cart: Codable, Identifiable {
@@ -17,6 +27,18 @@ struct Cart: Codable, Identifiable {
     let itemsCount: Int
     let createdAt: String
     let updatedAt: String
+
+    func replacingItems(_ items: [CartItem]) -> Cart {
+        Cart(
+            uuid: uuid,
+            name: name,
+            isActive: isActive,
+            items: items,
+            itemsCount: items.reduce(0) { $0 + $1.quantity },
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
 }
 
 struct CartsResponse: Codable {
@@ -86,6 +108,53 @@ struct CartSummaryResponse: Codable {
         case cart, totalItems, cheapestPerProduct
         case _cheapestTotalPrice = "cheapestTotalPrice"
         case groupedByStore, unavailableProducts, singleStoreTotals
+    }
+}
+
+struct CartStateSnapshot {
+    let cart: Cart
+    let itemsCount: Int
+    let total: Double
+}
+
+extension CartSummaryResponse {
+    var hasVisibleItems: Bool {
+        !cheapestPerProduct.isEmpty || !unavailableProducts.isEmpty
+    }
+
+    var cartStateSnapshot: CartStateSnapshot {
+        cartStateSnapshot(quantityOverrides: [:])
+    }
+
+    func cartStateSnapshot(quantityOverrides: [String: Int]) -> CartStateSnapshot {
+        let computedTotal = cheapestPerProduct.reduce(0) { total, item in
+            let quantity = quantityOverrides[item.product.uuid] ?? item.quantity
+            return total + item.price * Double(quantity)
+        }
+        let availableCount = cheapestPerProduct.reduce(0) { total, item in
+            total + (quantityOverrides[item.product.uuid] ?? item.quantity)
+        }
+        let unavailableCount = unavailableProducts.reduce(0) { total, item in
+            total + (quantityOverrides[item.product.uuid] ?? item.quantity)
+        }
+
+        return CartStateSnapshot(
+            cart: cart.applyingQuantityOverrides(quantityOverrides),
+            itemsCount: availableCount + unavailableCount,
+            total: quantityOverrides.isEmpty && cheapestTotalPrice > 0 ? cheapestTotalPrice : computedTotal
+        )
+    }
+}
+
+extension Cart {
+    func applyingQuantityOverrides(_ overrides: [String: Int]) -> Cart {
+        guard !overrides.isEmpty else { return self }
+        let updatedItems = items.compactMap { item -> CartItem? in
+            guard let quantity = overrides[item.product.uuid] else { return item }
+            guard quantity > 0 else { return nil }
+            return item.replacingQuantity(quantity)
+        }
+        return replacingItems(updatedItems)
     }
 }
 

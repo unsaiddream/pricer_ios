@@ -42,9 +42,12 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     weak var delegate: ScannerViewControllerDelegate?
 
     private let session = AVCaptureSession()
+    private let sessionQueue = DispatchQueue(label: "kz.minprice.barcode.session", qos: .userInitiated)
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var scanned = false
     private var dimView: ScanDimView?
+    private var isSessionConfigured = false
+    private var shouldStartSession = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -61,40 +64,74 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.session.startRunning()
-        }
+        shouldStartSession = true
+        startSessionIfReady()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        session.stopRunning()
+        shouldStartSession = false
+        sessionQueue.async { [weak self] in
+            guard let self, self.session.isRunning else { return }
+            self.session.stopRunning()
+        }
     }
 
     private func setupCamera() {
-        guard AVCaptureDevice.authorizationStatus(for: .video) != .denied else {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configureCameraSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    granted ? self.configureCameraSession() : self.showPermissionAlert()
+                }
+            }
+        case .denied, .restricted:
             showPermissionAlert()
+        @unknown default:
+            showPermissionAlert()
+        }
+    }
+
+    private func configureCameraSession() {
+        guard !isSessionConfigured else {
+            startSessionIfReady()
             return
         }
 
         guard let device = AVCaptureDevice.default(for: .video),
               let input = try? AVCaptureDeviceInput(device: device) else { return }
 
+        guard session.canAddInput(input) else { return }
         session.addInput(input)
 
         let output = AVCaptureMetadataOutput()
+        guard session.canAddOutput(output) else { return }
         session.addOutput(output)
         output.setMetadataObjectsDelegate(self, queue: .main)
-        output.metadataObjectTypes = [
+        let desiredTypes: [AVMetadataObject.ObjectType] = [
             .ean8, .ean13, .code128, .code39, .qr,
             .upce, .itf14, .dataMatrix
         ]
+        output.metadataObjectTypes = desiredTypes.filter { output.availableMetadataObjectTypes.contains($0) }
 
         let layer = AVCaptureVideoPreviewLayer(session: session)
         layer.frame = view.layer.bounds
         layer.videoGravity = .resizeAspectFill
         view.layer.insertSublayer(layer, at: 0)
         self.previewLayer = layer
+        isSessionConfigured = true
+        startSessionIfReady()
+    }
+
+    private func startSessionIfReady() {
+        guard shouldStartSession, isSessionConfigured, !session.isRunning else { return }
+        sessionQueue.async { [weak self] in
+            guard let self, self.shouldStartSession, !self.session.isRunning else { return }
+            self.session.startRunning()
+        }
     }
 
     private func setupUI() {

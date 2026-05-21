@@ -49,10 +49,28 @@ final class APIClient {
 
     // MARK: - Request builder
 
+    /// Эндпоинты, ОФИЦИАЛЬНО поддерживающие chain_ids (см. docs/api.md).
+    /// Whitelist — на остальных бэк может вернуть 400 или странную пагинацию,
+    /// и краш ForEach с дублями UUID при перелистывании.
+    private static let pathsWithStoreFilter: Set<String> = [
+        "/search/", "/discounts/", "/best-deals/",
+    ]
+
     func request(path: String, queryItems: [URLQueryItem] = []) -> URLRequest {
         var components = URLComponents(string: baseURL + path)!
-        if !queryItems.isEmpty {
-            components.queryItems = queryItems
+        var allItems = queryItems
+
+        // Авто-инжект chain_ids только на endpoints, которые задокументировано
+        // принимают этот параметр.
+        if Self.pathsWithStoreFilter.contains(path),
+           queryItems.first(where: { $0.name == "chain_ids" }) == nil {
+            if let csv = Self.cachedChainIdsCSV(), !csv.isEmpty {
+                allItems.append(URLQueryItem(name: "chain_ids", value: csv))
+            }
+        }
+
+        if !allItems.isEmpty {
+            components.queryItems = allItems
         }
         var req = URLRequest(url: components.url!)
         if let uuid = guestUUID {
@@ -85,8 +103,16 @@ final class APIClient {
     }
 
     func postVoid<B: Encodable>(path: String, body: B) async throws {
+        try await sendVoid(method: "POST", path: path, body: body)
+    }
+
+    func patchVoid<B: Encodable>(path: String, body: B) async throws {
+        try await sendVoid(method: "PATCH", path: path, body: body)
+    }
+
+    private func sendVoid<B: Encodable>(method: String, path: String, body: B) async throws {
         var req = request(path: path)
-        req.httpMethod = "POST"
+        req.httpMethod = method
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -95,7 +121,7 @@ final class APIClient {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             let raw = String(data: data.prefix(500), encoding: .utf8) ?? "?"
-            Log.debug("❌ HTTP \(code) for POST \(path): \(raw)")
+            Log.debug("❌ HTTP \(code) for \(method) \(path): \(raw)")
             throw APIError.httpError(statusCode: code)
         }
     }
@@ -117,6 +143,14 @@ final class APIClient {
         }
 
         return try decode(T.self, from: data)
+    }
+
+    /// Прямое чтение CSV из UserDefaults — без обращения к @MainActor-singleton'у.
+    /// Ключ должен совпадать с FavoriteStoresStore.csv (@AppStorage("minprice_favorite_chains_csv")).
+    private static func cachedChainIdsCSV() -> String? {
+        let s = UserDefaults.standard.string(forKey: "minprice_favorite_chains_csv")
+        guard let s, !s.isEmpty else { return nil }
+        return s
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
@@ -142,5 +176,17 @@ enum APIError: LocalizedError {
         case .httpError(let code): return "Ошибка сервера: \(code)"
         case .decodingError(let msg): return "Ошибка данных: \(msg)"
         }
+    }
+}
+
+extension Error {
+    /// Игнорируем cancellation — это нормально при свайпе назад/перезагрузке экрана,
+    /// показывать "cancelled" пользователю не нужно.
+    var isCancellation: Bool {
+        if self is CancellationError { return true }
+        let ns = self as NSError
+        if ns.domain == NSURLErrorDomain, ns.code == NSURLErrorCancelled { return true }
+        if let urlErr = self as? URLError, urlErr.code == .cancelled { return true }
+        return false
     }
 }

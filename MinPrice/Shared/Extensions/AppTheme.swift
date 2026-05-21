@@ -61,17 +61,25 @@ extension LinearGradient {
     }
 }
 
-// MARK: - Большой заголовок экрана (применяется на главной/каталоге/скидках/избранном/корзине)
+// MARK: - Большой заголовок экрана
+// Минималистичный: только массивный bold-текст.
+// Раньше было: eyebrow CAPS + title + period + gradient-line — четыре
+// декоративных элемента дрались за внимание. Теперь — confident типографика,
+// без лишних цветных точек после названия.
+//
+// Параметр eyebrow оставлен для API-совместимости (ранее использовался),
+// но больше не рендерится.
 
 struct BrandTitle: View {
     let text: String
+    var eyebrow: String? = nil
+    var accent: Color = .appPrimary
 
     var body: some View {
         Text(text)
-            .font(.system(size: 28, weight: .heavy, design: .rounded))
-            .kerning(0.2)
-            .foregroundStyle(LinearGradient.brandPrimary)
-            .shadow(color: Color.appPrimary.opacity(0.20), radius: 8, x: 0, y: 0)
+            .font(.system(size: 34, weight: .black, design: .rounded))
+            .kerning(-0.6)
+            .foregroundStyle(Color.appForeground)
     }
 }
 
@@ -89,6 +97,70 @@ struct PressScaleStyle: ButtonStyle {
 
 extension ButtonStyle where Self == PressScaleStyle {
     static var pressScale: PressScaleStyle { PressScaleStyle() }
+}
+
+// MARK: - Shared section chrome
+
+struct AppSectionHeader: View {
+    let title: String
+    var subtitle: String? = nil
+    var icon: String? = nil
+    var accent: Color = .appPrimary
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(accent)
+                .frame(width: 4, height: subtitle == nil ? 22 : 32)
+
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(accent)
+                    .frame(width: 24, height: 24)
+                    .background(accent.opacity(0.12), in: Circle())
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.appForeground)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.86)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.appMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+            }
+
+            Spacer(minLength: 8)
+        }
+    }
+}
+
+struct AppMetricPill: View {
+    let icon: String
+    let text: String
+    var tint: Color = .appPrimary
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .bold))
+            Text(text)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(tint.opacity(0.11), in: Capsule())
+        .overlay(Capsule().stroke(tint.opacity(0.22), lineWidth: 0.7))
+    }
 }
 
 // MARK: - Палитра — единый источник правды для всего приложения

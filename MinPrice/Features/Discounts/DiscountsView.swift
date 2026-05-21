@@ -10,50 +10,71 @@ struct DiscountsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                // Заголовок — те же отступы, что и на остальных вкладках
-                BrandTitle(text: "Скидки")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 6)
+                VStack(alignment: .leading, spacing: 10) {
+                    BrandTitle(text: "Скидки",
+                               eyebrow: "Сегодня выгодно",
+                               accent: Color.discountRed)
+                    if !vm.products.isEmpty {
+                        HStack(spacing: 8) {
+                            AppMetricPill(
+                                icon: "tag.fill",
+                                text: "\(displayCount) \(discountsWord(displayCount))",
+                                tint: Color.discountRed
+                            )
+                            Spacer()
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
 
                 if vm.isLoading && vm.products.isEmpty {
                     SkeletonCardGrid()
                         .padding(.vertical, 12)
                 } else if vm.products.isEmpty && !vm.isLoading {
-                    VStack(spacing: 12) {
-                        Image(systemName: "tag.slash")
-                            .font(.system(size: 44))
-                            .foregroundStyle(Color.appMuted.opacity(0.4))
-                        Text("Нет данных")
-                            .font(.jb(15))
-                            .foregroundStyle(Color.appMuted)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 80)
+                    ErrorStateView(
+                        .empty(
+                            title: "Скидок пока нет",
+                            message: "Обновите раздел чуть позже",
+                            systemImage: "tag.slash"
+                        ),
+                        retry: { Task { await vm.refresh(cityId: cityStore.selectedCityId) } }
+                    )
+                    .padding(.top, 48)
                 } else {
+                    AppSectionHeader(
+                        title: "Все предложения",
+                        subtitle: "Отсортировано по выгоде",
+                        icon: "flame.fill",
+                        accent: Color.discountRed
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 10)
+
                     LazyVGrid(columns: gridColumns, spacing: 10) {
                         ForEach(vm.products) { product in
                             NavigationLink(value: product.uuid) {
-                                ProductCard(product: product) {
-                                    Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
-                                }.equatable()
+                                ProductCardWrapper(product: product)
                             }
                             .buttonStyle(.pressScale)
                             .onAppear {
-                                if product.uuid == vm.products.last?.uuid {
-                                    Task { await vm.load(cityId: cityStore.selectedCityId, append: true) }
-                                }
+                                guard product.uuid == vm.products.last?.uuid else { return }
+                                Task { await vm.load(cityId: cityStore.selectedCityId, append: true) }
                             }
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.bottom, 8)
 
                     if vm.isLoading {
-                        ProgressView().tint(Color.appPrimary).padding()
+                        PaginationLoader()
                     }
                 }
+
+                Color.clear.frame(height: 150)
             }
             .background(Color.appBackground)
             .navigationBarTitleDisplayMode(.inline)
@@ -73,5 +94,16 @@ struct DiscountsView: View {
             Task { await vm.refresh(cityId: newId) }
         }
     }
-}
 
+    private var displayCount: Int {
+        vm.totalCount > 0 ? vm.totalCount : vm.products.count
+    }
+
+    private func discountsWord(_ n: Int) -> String {
+        let m10 = n % 10, m100 = n % 100
+        if m100 >= 11 && m100 <= 19 { return "скидок" }
+        if m10 == 1 { return "скидка" }
+        if m10 >= 2 && m10 <= 4 { return "скидки" }
+        return "скидок"
+    }
+}

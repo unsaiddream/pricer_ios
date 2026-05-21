@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var barcodeProductUuid: String? = nil
     @State private var isBarcodeLoading = false
     @State private var barcodeNotFound = false
+    @State private var activeBarcodeRequestId = UUID()
     @EnvironmentObject var cartStore: CartStore
     @EnvironmentObject var favoritesStore: FavoritesStore
     @EnvironmentObject var cityStore: CityStore
@@ -130,6 +131,7 @@ struct ContentView: View {
                     .animation(.spring(response: 0.4, dampingFraction: 0.7), value: cartStore.toastMessage)
                     .zIndex(100)
             }
+
         }
         .ignoresSafeArea(edges: .bottom)
         .sheet(isPresented: Binding(
@@ -161,57 +163,86 @@ struct ContentView: View {
     }
 
     private func handleBarcodeScan(_ barcode: String) async {
+        let requestId = UUID()
+        activeBarcodeRequestId = requestId
         withAnimation { isBarcodeLoading = true }
 
         let cityId = cityStore.selectedCityId
+        let lookup = await lookupBarcode(barcode, cityId: cityId)
 
-        // Task.detached запускает оба запроса вне MainActor — реально параллельно
-        let directTask = Task.detached { () -> String? in
-            let items = [
-                URLQueryItem(name: "barcode", value: barcode),
-                URLQueryItem(name: "city_id", value: String(cityId)),
-            ]
-            return try? await APIClient.shared.fetch(
-                ProductsResponse.self,
-                path: Endpoint.products(),
-                queryItems: items,
-                timeout: 4.0
-            ).results.first?.uuid
+        guard requestId == activeBarcodeRequestId else { return }
+        withAnimation { isBarcodeLoading = false }
+
+        if let uuid = lookup.uuid {
+            barcodeProductUuid = uuid
+        } else {
+            if lookup.hitsCount > 1 {
+                // Если по штрихкоду найдено >1 товара — безопаснее открыть поиск,
+                // чем ошибочно открыть "чужой" товар.
+                scanResultQuery = lookup.query
+                showSearch = true
+            } else {
+                withAnimation { barcodeNotFound = true }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                withAnimation { barcodeNotFound = false }
+            }
         }
+    }
 
-        let searchTask = Task.detached { () -> String? in
+    private func lookupBarcode(_ rawBarcode: String, cityId: Int) async -> (uuid: String?, hitsCount: Int, query: String) {
+        let candidates = barcodeLookupCandidates(from: rawBarcode)
+        let displayQuery = candidates.first ?? rawBarcode.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        for candidate in candidates {
             let items = [
-                URLQueryItem(name: "q", value: barcode),
+                URLQueryItem(name: "q", value: candidate),
                 URLQueryItem(name: "city_id", value: String(cityId)),
                 URLQueryItem(name: "page", value: "0"),
-                URLQueryItem(name: "hitsPerPage", value: "1"),
+                URLQueryItem(name: "hitsPerPage", value: "20"),
+                // Scanner lookup must not be narrowed by the optional home store filter.
+                URLQueryItem(name: "chain_ids", value: ""),
             ]
-            return try? await APIClient.shared.fetch(
+
+            guard let response = try? await APIClient.shared.fetch(
                 SearchResponse.self,
                 path: Endpoint.search(),
                 queryItems: items,
                 timeout: 10.0
-            ).hits.first?.uuid
+            ) else { continue }
+
+            let hits = response.hits
+            let uniqueUUIDs = Set(hits.map(\.uuid))
+            if uniqueUUIDs.count == 1, let uuid = hits.first?.uuid {
+                return (uuid, hits.count, candidate)
+            }
+            if !hits.isEmpty {
+                return (nil, hits.count, candidate)
+            }
         }
 
-        // Ждём быстрый lookup (max 4s), потом search (уже работал параллельно)
-        let uuid: String?
-        if let direct = await directTask.value {
-            searchTask.cancel()
-            uuid = direct
-        } else {
-            uuid = await searchTask.value
+        return (nil, 0, displayQuery)
+    }
+
+    private func barcodeLookupCandidates(from rawBarcode: String) -> [String] {
+        let trimmed = rawBarcode.trimmingCharacters(in: .whitespacesAndNewlines)
+        let digits = trimmed.filter(\.isNumber)
+        var candidates: [String] = []
+
+        func append(_ value: String) {
+            guard !value.isEmpty, !candidates.contains(value) else { return }
+            candidates.append(value)
         }
 
-        withAnimation { isBarcodeLoading = false }
-
-        if let uuid {
-            barcodeProductUuid = uuid
-        } else {
-            withAnimation { barcodeNotFound = true }
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            withAnimation { barcodeNotFound = false }
+        if !digits.isEmpty {
+            append(digits)
+            if digits.count == 12 { append("0" + digits) }
+            if digits.count == 13, digits.hasPrefix("0") { append(String(digits.dropFirst())) }
+            let stripped = digits.drop(while: { $0 == "0" })
+            append(String(stripped))
         }
+
+        append(trimmed)
+        return candidates
     }
 }
 
@@ -267,6 +298,7 @@ struct BottomSearchBar: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Открыть поиск товаров")
 
             Button {
                 onScan?()
@@ -282,6 +314,8 @@ struct BottomSearchBar: View {
                     }
                     .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 3)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Сканировать штрихкод")
         }
         .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }

@@ -6,7 +6,10 @@ struct HomeView: View {
     @EnvironmentObject var cityStore: CityStore
     @EnvironmentObject var cartStore: CartStore
     @StateObject private var vm = HomeViewModel()
+    @ObservedObject private var favStores = FavoriteStoresStore.shared
     @State private var showCitySelector = false
+    @State private var showAbout = false
+    @State private var homeLoadTask: Task<Void, Never>?
     @AppStorage("isDarkMode") private var isDarkMode = false
 
     var body: some View {
@@ -14,24 +17,15 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
 
-                    // Hero — корзина по каталогу дня (с ротацией).
-                    // Отключаемо через RemoteConfig.features.storeBasketChart=false
-                    // на случай если бэкенд просядет или мы захотим тихо отключить
-                    // фичу всем пользователям без релиза.
-                    // Приоритет — готовый агрегат с бэка (vm.basketSummary).
-                    // Если эндпоинт не задеплоен / упал, vm падает на legacy-путь
-                    // с products[] и клиентским precompute.
-                    if (vm.basketSummary != nil || !vm.basketProducts.isEmpty),
-                       ConfigSnapshot.isEnabled(.storeBasketChart) {
-                        StoreBasketChart(
-                            category: vm.basketCategory,
-                            summary: vm.basketSummary,
-                            products: vm.basketProducts
-                        )
+                    // Hero — фильтр по магазинам. Кружки кликаются, выбор хранится локально,
+                    // и автоматически прилипает ко всем product-запросам (через FavoriteStoresStore).
+                    StoresFilterBar()
                         .padding(.horizontal, 16)
-                        .padding(.top, 8)
+                        .padding(.top, 10)
                         .padding(.bottom, 12)
-                    }
+                        .onChange(of: favStores.selectedIds) { _ in
+                            scheduleHomeReload(cityId: cityStore.selectedCityId, debounce: true)
+                        }
 
                     if vm.isLoading {
                         SkeletonGrid()
@@ -41,66 +35,75 @@ struct HomeView: View {
                         // Показываем ErrorStateView с retry, иначе пользователь видит белый.
                         ErrorStateView(
                             vm.errorMessage != nil ? .networkError : .serverError,
-                            retry: { Task { await vm.load(cityId: cityStore.selectedCityId) } }
+                            retry: { scheduleHomeReload(cityId: cityStore.selectedCityId) }
                         )
                         .frame(minHeight: 400)
                     } else {
                         if let error = vm.errorMessage {
                             ErrorBanner(message: error) {
-                                Task { await vm.load(cityId: cityStore.selectedCityId) }
+                                scheduleHomeReload(cityId: cityStore.selectedCityId)
                             }
                             .padding(.horizontal, 16)
                             .padding(.bottom, 16)
                         }
 
-                        if !vm.categories.isEmpty {
-                            CategoryStrip(
-                                categories: vm.categories,
-                                selectedId: vm.basketCategory?.id,
-                                onSelectAll: {
-                                    Task { await vm.selectAllCategories(cityId: cityStore.selectedCityId) }
-                                }
-                            ) { cat in
-                                Task { await vm.selectBasketCategory(cat, cityId: cityStore.selectedCityId) }
-                            }
-                            .padding(.bottom, 16)
-                        }
-
                         if !vm.bestDeals.isEmpty {
-                            SectionHeader(title: "Выгодные предложения", count: vm.bestDeals.count, accent: Color.discountRed)
+                            SectionHeader(
+                                title: "Выгодные предложения",
+                                count: vm.bestDealsTotal ?? vm.bestDeals.count,
+                                icon: "flame.fill",
+                                accent: Color.discountRed
+                            )
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 10)
 
                             LazyVGrid(columns: gridColumns, spacing: 10) {
                                 ForEach(vm.bestDeals) { product in
                                     NavigationLink(value: product.uuid) {
-                                        ProductCard(product: product) {
-                                            Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
-                                        }.equatable()
+                                        ProductCardWrapper(product: product)
                                     }
                                     .buttonStyle(.pressScale)
+                                    .onAppear {
+                                        guard product.uuid == vm.bestDeals.last?.uuid else { return }
+                                        Task { await vm.loadMoreBestDeals(cityId: cityStore.selectedCityId) }
+                                    }
                                 }
                             }
                             .padding(.horizontal, 16)
+
+                            if vm.isLoadingMoreBestDeals {
+                                PaginationLoader()
+                            }
                         }
 
                         if !vm.priceDrops.isEmpty {
-                            SectionHeader(title: "Снижение цен", count: nil, accent: Color.savingsGreen)
+                            SectionHeader(
+                                title: "Снижение цен",
+                                count: vm.priceDrops.count,
+                                icon: "chart.line.downtrend.xyaxis",
+                                accent: Color.savingsGreen
+                            )
                                 .padding(.horizontal, 16)
-                                .padding(.top, 24)
+                                .padding(.top, 20)
                                 .padding(.bottom, 10)
 
                             LazyVGrid(columns: gridColumns, spacing: 10) {
                                 ForEach(vm.priceDrops) { product in
                                     NavigationLink(value: product.uuid) {
-                                        ProductCard(product: product) {
-                                            Task { try? await cartStore.quickAdd(productUuid: product.uuid) }
-                                        }.equatable()
+                                        ProductCardWrapper(product: product)
                                     }
                                     .buttonStyle(.pressScale)
+                                    .onAppear {
+                                        guard product.uuid == vm.priceDrops.last?.uuid else { return }
+                                        Task { await vm.loadMorePriceDrops(cityId: cityStore.selectedCityId) }
+                                    }
                                 }
                             }
                             .padding(.horizontal, 16)
+
+                            if vm.isLoadingMorePriceDrops {
+                                PaginationLoader()
+                            }
                         }
                     }
                 }
@@ -118,15 +121,32 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { isDarkMode.toggle() }
-                    } label: {
-                        Image(systemName: isDarkMode ? "sun.max.fill" : "moon.fill")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(isDarkMode ? Color.appPrimary : Color.appMuted)
-                            .frame(width: 32, height: 32)
-                            .background(.ultraThinMaterial, in: Circle())
+                    HStack(spacing: 3) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) { isDarkMode.toggle() }
+                        } label: {
+                            Image(systemName: isDarkMode ? "sun.max.fill" : "moon.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color.appPrimary)
+                                .frame(width: 28, height: 28)
+                                .background(Color.appPrimary.opacity(0.10), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isDarkMode ? "Включить светлую тему" : "Включить тёмную тему")
+
+                        Button { showAbout = true } label: {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.appPrimary.opacity(0.78))
+                                .frame(width: 28, height: 28)
+                                .background(Color.appPrimary.opacity(0.08), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("О приложении")
                     }
+                    .padding(4)
+                    .background(Color.appPrimary.opacity(0.08), in: Capsule())
+                    .overlay(Capsule().stroke(Color.appPrimary.opacity(0.16), lineWidth: 0.7))
                 }
                 ToolbarItem(placement: .principal) {
                     HStack(spacing: 6) {
@@ -144,23 +164,34 @@ struct HomeView: View {
                     Button {
                         showCitySelector = true
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Image(systemName: "location.fill")
-                                .font(.system(size: 11))
+                                .font(.system(size: 11, weight: .semibold))
                             Text(cityStore.selectedCity?.name ?? "Алматы")
-                                .font(.jb(13))
+                                .font(.jb(12))
+                                .lineLimit(1)
                         }
                         .foregroundStyle(Color.appPrimary)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 8)
+                        .background(Color.appPrimary.opacity(0.08), in: Capsule())
+                        .overlay(Capsule().stroke(Color.appPrimary.opacity(0.16), lineWidth: 0.7))
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Выбрать город")
                 }
             }
             .sheet(isPresented: $showCitySelector) {
                 CitySelectorSheet(isPresented: $showCitySelector)
             }
+            .sheet(isPresented: $showAbout) {
+                AboutView()
+            }
             .navigationDestination(for: String.self) { uuid in
                 ProductView(uuid: uuid)
             }
             .refreshable {
+                homeLoadTask?.cancel()
                 await vm.load(cityId: cityStore.selectedCityId)
             }
         }
@@ -168,207 +199,74 @@ struct HomeView: View {
             await vm.load(cityId: cityStore.selectedCityId)
         }
         .onChange(of: cityStore.selectedCityId) { newId in
-            Task { await vm.load(cityId: newId) }
+            scheduleHomeReload(cityId: newId)
+        }
+        .onDisappear {
+            homeLoadTask?.cancel()
+        }
+    }
+
+    private func scheduleHomeReload(cityId: Int, debounce: Bool = false) {
+        homeLoadTask?.cancel()
+        homeLoadTask = Task {
+            if debounce {
+                try? await Task.sleep(nanoseconds: 450_000_000)
+                guard !Task.isCancelled else { return }
+            }
+            await vm.load(cityId: cityId)
         }
     }
 }
 
 // MARK: - Subviews
 
-private let categoryChipPalette: [Color] = [
-    .red, .orange, .green, .blue, .purple,
-    .pink, .teal, .indigo, .yellow, .mint, .cyan, .brown
-]
-
-private struct CategoryStrip: View {
-    let categories: [Category]
-    let selectedId: Int?
-    let onSelectAll: () -> Void
-    let onSelect: (Category) -> Void
-
-    private var isAllSelected: Bool { selectedId == nil }
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                // Кнопка «Все» — общий график по всем товарам
-                Button {
-                    onSelectAll()
-                } label: {
-                    VStack(spacing: 4) {
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    isAllSelected
-                                        ? AnyShapeStyle(LinearGradient.brandPrimary)
-                                        : AnyShapeStyle(Color.appPrimary.opacity(0.18))
-                                )
-                            Image(systemName: "square.grid.2x2.fill")
-                                .font(.system(size: 18, weight: .black))
-                                .foregroundStyle(isAllSelected ? .white : Color.appPrimary)
-                        }
-                        .frame(width: 52, height: 52)
-                        .overlay(
-                            Circle().stroke(
-                                isAllSelected ? Color.appPrimary.opacity(0.6) : Color.appPrimary.opacity(0.30),
-                                lineWidth: isAllSelected ? 1.5 : 1
-                            )
-                        )
-                        .shadow(
-                            color: isAllSelected ? Color.appPrimary.opacity(0.40) : .clear,
-                            radius: 8, x: 0, y: 3
-                        )
-
-                        Text("Все")
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
-                            .foregroundStyle(
-                                isAllSelected
-                                    ? AnyShapeStyle(LinearGradient.brandPrimary)
-                                    : AnyShapeStyle(Color.appPrimary)
-                            )
-                            .lineLimit(1)
-                            .frame(width: 60)
-                    }
-                }
-                .buttonStyle(.pressScale)
-
-                ForEach(Array(categories.enumerated()), id: \.element.id) { idx, cat in
-                    let color = categoryChipPalette[idx % categoryChipPalette.count]
-                    let isSelected = (selectedId == cat.id)
-
-                    Button {
-                        onSelect(cat)
-                    } label: {
-                        VStack(spacing: 4) {
-                            ZStack {
-                                Circle()
-                                    .fill(
-                                        isSelected
-                                            ? AnyShapeStyle(LinearGradient.brandPrimary)
-                                            : AnyShapeStyle(color.opacity(0.18))
-                                    )
-                                Text(cat.emoji ?? "🛍️")
-                                    .font(.system(size: 24))
-                            }
-                            .frame(width: 52, height: 52)
-                            .overlay(
-                                Circle().stroke(
-                                    isSelected ? Color.appPrimary.opacity(0.6) : color.opacity(0.3),
-                                    lineWidth: isSelected ? 1.5 : 1
-                                )
-                            )
-                            .shadow(
-                                color: isSelected ? Color.appPrimary.opacity(0.40) : .clear,
-                                radius: 8, x: 0, y: 3
-                            )
-
-                            Text(cat.name)
-                                .font(.system(size: 10, weight: isSelected ? .heavy : .medium, design: .rounded))
-                                .foregroundStyle(
-                                    isSelected
-                                        ? AnyShapeStyle(LinearGradient.brandPrimary)
-                                        : AnyShapeStyle(Color.appMuted)
-                                )
-                                .lineLimit(1)
-                                .frame(width: 60)
-                        }
-                    }
-                    .buttonStyle(.pressScale)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 4)
-        }
-    }
-}
-
-private struct HeroBanner: View {
-    private let stores: [String] = ["store_magnum", "store_arbuz", "store_airba_fresh", "store_small"]
-
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Сравнение цен")
-                    .font(.jb(15, weight: .bold))
-                    .foregroundStyle(Color.appForeground)
-                Text("Минимальная цена в 4 магазинах")
-                    .font(.jb(12))
-                    .foregroundStyle(Color.appMuted)
-            }
-            Spacer()
-            HStack(spacing: -8) {
-                ForEach(stores, id: \.self) { asset in
-                    ZStack {
-                        Circle().fill(.white)
-                        Image(asset)
-                            .resizable()
-                            .scaledToFit()
-                            .padding(4)
-                    }
-                    .frame(width: 28, height: 28)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.appCard, lineWidth: 2))
-                }
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(Color.appCard, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.appPrimary.opacity(0.15), lineWidth: 1))
-    }
-}
-
 private struct SectionHeader: View {
     let title: String
     let count: Int?
+    var icon: String? = nil
     var accent: Color = .appPrimary
 
-    private var titleGradient: LinearGradient { .brandPrimary }
-
     var body: some View {
-        HStack(spacing: 10) {
-            // Accent bar — мини-градиент в тон акценту
-            RoundedRectangle(cornerRadius: 2)
-                .fill(
-                    LinearGradient(
-                        colors: [accent.opacity(0.95), accent.opacity(0.55)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .frame(width: 3, height: 20)
-                .shadow(color: accent.opacity(0.5), radius: 4, x: 0, y: 0)
+        HStack(alignment: .center, spacing: 10) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(accent)
+                    .frame(width: 28, height: 28)
+                    .background(accent.opacity(0.12), in: Circle())
+            }
 
             Text(title)
-                .font(.system(size: 18, weight: .heavy, design: .rounded))
-                .kerning(0.3)
-                .foregroundStyle(titleGradient)
-                .shadow(color: Color.appPrimary.opacity(0.20), radius: 6, x: 0, y: 0)
+                .font(.system(size: 19, weight: .black, design: .rounded))
+                .foregroundStyle(Color.appForeground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
-            Spacer()
+
+            Spacer(minLength: 8)
+
             if let count {
-                Text("\(count)")
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8).padding(.vertical, 2.5)
-                    .background {
-                        ZStack {
-                            LinearGradient(
-                                colors: [accent.opacity(0.95), accent.opacity(0.7)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            )
-                            LinearGradient(
-                                colors: [.white.opacity(0.30), .clear],
-                                startPoint: .top, endPoint: .center
-                            )
-                        }
-                        .clipShape(Capsule())
-                    }
-                    .overlay(Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
-                    .shadow(color: accent.opacity(0.40), radius: 5, x: 0, y: 2)
-                    .fixedSize()
+                countPill(count)
             }
         }
+    }
+
+    private func countPill(_ count: Int) -> some View {
+        Text(compactCount(count))
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundStyle(accent)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(accent.opacity(0.11), in: Capsule())
+            .overlay(Capsule().stroke(accent.opacity(0.24), lineWidth: 0.7))
+            .fixedSize()
+    }
+
+    private func compactCount(_ count: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: count)) ?? "\(count)"
     }
 }
 
@@ -415,4 +313,3 @@ private struct SkeletonGrid: View {
         }
     }
 }
-

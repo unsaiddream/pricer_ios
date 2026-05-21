@@ -23,9 +23,12 @@ final class ProductViewModel: ObservableObject {
             product = p
             priceHistory = h
         } catch {
-            self.error = error.localizedDescription
+            // cancellation = нормальный сценарий (свайп назад / перезагрузка), не показываем
+            if !error.isCancellation {
+                self.error = error.localizedDescription
+            }
         }
 
-        isLoading = false
+        if !Task.isCancelled { isLoading = false }
     }
 }
